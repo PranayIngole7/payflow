@@ -13,7 +13,7 @@ import java.util.Objects;
  * Spring transaction management is kept in infrastructure.</p>
  */
 @Component
-public final class SpringTransactionRunner implements TransactionRunner {
+public class SpringTransactionRunner implements TransactionRunner {
 
     @Override
     @Transactional
