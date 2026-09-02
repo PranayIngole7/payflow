@@ -53,14 +53,19 @@ class InitiateTransferUseCaseTest {
 
         executeRunnableImmediately();
 
-        TransactionId transactionId = useCase.execute(
-                sourceWalletId,
-                destinationWalletId,
-                amount,
-                "transfer-123"
-        );
+        InitiateTransferUseCase.InitiationResult result =
+                useCase.execute(
+                        sourceWalletId,
+                        destinationWalletId,
+                        amount,
+                        "transfer-123"
+                );
 
-        assertNotNull(transactionId);
+        assertNotNull(result);
+        assertNotNull(result.transactionId());
+        assertTrue(result.created());
+
+        TransactionId transactionId = result.transactionId();
 
         verify(transactionRepository)
                 .findByIdempotencyKey("transfer-123");
@@ -101,14 +106,16 @@ class InitiateTransferUseCaseTest {
         when(transactionRepository.findByIdempotencyKey("transfer-123"))
                 .thenReturn(Optional.of(existing));
 
-        TransactionId result = useCase.execute(
-                sourceWalletId,
-                destinationWalletId,
-                amount,
-                "transfer-123"
-        );
+        InitiateTransferUseCase.InitiationResult result =
+                useCase.execute(
+                        sourceWalletId,
+                        destinationWalletId,
+                        amount,
+                        "transfer-123"
+                );
 
-        assertEquals(existingId, result);
+        assertEquals(existingId, result.transactionId());
+        assertFalse(result.created());
 
         verify(transactionRepository)
                 .findByIdempotencyKey("transfer-123");
@@ -137,14 +144,16 @@ class InitiateTransferUseCaseTest {
         when(transactionRepository.findByIdempotencyKey("transfer-123"))
                 .thenReturn(Optional.of(existing));
 
-        TransactionId result = useCase.execute(
-                sourceWalletId,
-                destinationWalletId,
-                amount,
-                "transfer-123"
-        );
+        InitiateTransferUseCase.InitiationResult result =
+                useCase.execute(
+                        sourceWalletId,
+                        destinationWalletId,
+                        amount,
+                        "transfer-123"
+                );
 
-        assertEquals(existingId, result);
+        assertEquals(existingId, result.transactionId());
+        assertFalse(result.created());
 
         verify(transactionRepository, never())
                 .save(any(Transaction.class));
@@ -197,14 +206,17 @@ class InitiateTransferUseCaseTest {
 
         executeRunnableImmediately();
 
-        TransactionId transactionId = useCase.execute(
-                sourceWalletId,
-                destinationWalletId,
-                amount,
-                "  transfer-123  "
-        );
+        InitiateTransferUseCase.InitiationResult result =
+                useCase.execute(
+                        sourceWalletId,
+                        destinationWalletId,
+                        amount,
+                        "  transfer-123  "
+                );
 
-        assertNotNull(transactionId);
+        assertNotNull(result);
+        assertNotNull(result.transactionId());
+        assertTrue(result.created());
 
         verify(transactionRepository)
                 .findByIdempotencyKey("transfer-123");

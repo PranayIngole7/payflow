@@ -11,15 +11,11 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Objects;
 
-/**
- * REST API for transfer operations.
- */
 @RestController
 @RequestMapping("/api/v1/transfers")
 public class TransferController {
 
-    private static final String IDEMPOTENCY_KEY_HEADER =
-            "Idempotency-Key";
+    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
     private final InitiateTransferUseCase initiateTransferUseCase;
     private final ExecuteTransferUseCase executeTransferUseCase;
@@ -28,45 +24,35 @@ public class TransferController {
             InitiateTransferUseCase initiateTransferUseCase,
             ExecuteTransferUseCase executeTransferUseCase
     ) {
-        this.initiateTransferUseCase =
-                Objects.requireNonNull(
-                        initiateTransferUseCase,
-                        "initiate transfer use case must not be null"
-                );
+        this.initiateTransferUseCase = Objects.requireNonNull(
+                initiateTransferUseCase,
+                "initiate transfer use case must not be null"
+        );
 
-        this.executeTransferUseCase =
-                Objects.requireNonNull(
-                        executeTransferUseCase,
-                        "execute transfer use case must not be null"
-                );
+        this.executeTransferUseCase = Objects.requireNonNull(
+                executeTransferUseCase,
+                "execute transfer use case must not be null"
+        );
     }
 
-    /**
-     * Initiates and executes a wallet-to-wallet transfer.
-     *
-     * <p>The idempotency key makes retries safe. If the transaction was
-     * already completed, the existing transaction ID is returned.</p>
-     */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public InitiateTransferResponse initiateTransfer(
             @Valid @RequestBody InitiateTransferRequest request,
-            @RequestHeader(IDEMPOTENCY_KEY_HEADER)
-            String idempotencyKey
+            @RequestHeader(IDEMPOTENCY_KEY_HEADER) String idempotencyKey
     ) {
-        TransactionId transactionId =
+        InitiateTransferUseCase.InitiationResult result =
                 initiateTransferUseCase.execute(
                         new WalletId(request.sourceWalletId()),
                         new WalletId(request.destinationWalletId()),
-                        new Money(
-                                request.amount(),
-                                request.currency()
-                        ),
+                        new Money(request.amount(), request.currency()),
                         idempotencyKey
                 );
 
-        executeTransferUseCase.execute(transactionId);
+        if (result.created()) {
+            executeTransferUseCase.execute(result.transactionId());
+        }
 
-        return InitiateTransferResponse.from(transactionId);
+        return InitiateTransferResponse.from(result.transactionId());
     }
 }

@@ -9,14 +9,7 @@ import com.payflow.wallet.domain.WalletId;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * Application use case responsible for creating a new transfer transaction.
- *
- * <p>The idempotency key guarantees that retrying the same client request
- * returns the original transaction instead of creating a duplicate.</p>
- */
 public final class InitiateTransferUseCase {
 
     private final TransactionRepository transactionRepository;
@@ -30,53 +23,29 @@ public final class InitiateTransferUseCase {
                 transactionRepository,
                 "transaction repository must not be null"
         );
-
         this.transactionRunner = Objects.requireNonNull(
                 transactionRunner,
                 "transaction runner must not be null"
         );
     }
 
-    /**
-     * Initiates a new wallet-to-wallet transfer.
-     *
-     * <p>If the idempotency key has already been used for the same request,
-     * the existing transaction identifier is returned.</p>
-     *
-     * @return the existing or newly created transaction identifier
-     */
-    public TransactionId execute(
+    public InitiationResult execute(
             WalletId sourceWalletId,
             WalletId destinationWalletId,
             Money amount,
             String idempotencyKey
     ) {
-        Objects.requireNonNull(
-                sourceWalletId,
-                "source wallet id must not be null"
-        );
+        Objects.requireNonNull(sourceWalletId, "source wallet id must not be null");
+        Objects.requireNonNull(destinationWalletId, "destination wallet id must not be null");
+        Objects.requireNonNull(amount, "amount must not be null");
 
-        Objects.requireNonNull(
-                destinationWalletId,
-                "destination wallet id must not be null"
-        );
+        String normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
 
-        Objects.requireNonNull(
-                amount,
-                "amount must not be null"
-        );
-
-        String normalizedIdempotencyKey =
-                normalizeIdempotencyKey(idempotencyKey);
-
-        AtomicReference<TransactionId> result =
-                new AtomicReference<>();
+        InitiationResult[] result = new InitiationResult[1];
 
         transactionRunner.execute(() -> {
             Optional<Transaction> existing =
-                    transactionRepository.findByIdempotencyKey(
-                            normalizedIdempotencyKey
-                    );
+                    transactionRepository.findByIdempotencyKey(normalizedIdempotencyKey);
 
             if (existing.isPresent()) {
                 Transaction transaction = existing.get();
@@ -88,7 +57,7 @@ public final class InitiateTransferUseCase {
                         amount
                 );
 
-                result.set(transaction.id());
+                result[0] = new InitiationResult(transaction.id(), false);
                 return;
             }
 
@@ -103,11 +72,11 @@ public final class InitiateTransferUseCase {
 
             transactionRepository.save(transaction);
 
-            result.set(transaction.id());
+            result[0] = new InitiationResult(transaction.id(), true);
         });
 
         return Objects.requireNonNull(
-                result.get(),
+                result[0],
                 "transaction runner did not execute the operation"
         );
     }
@@ -125,28 +94,19 @@ public final class InitiateTransferUseCase {
                 existing.destinationWalletId().equals(destinationWalletId);
 
         boolean sameAmount =
-                existing.amount()
-                        .amount()
-                        .compareTo(amount.amount()) == 0;
+                existing.amount().amount().compareTo(amount.amount()) == 0;
 
         boolean sameCurrency =
                 existing.currency().equals(amount.currency());
 
-        if (!sameSource
-                || !sameDestination
-                || !sameAmount
-                || !sameCurrency) {
-
+        if (!sameSource || !sameDestination || !sameAmount || !sameCurrency) {
             throw new IllegalStateException(
-                    "idempotency key has already been used "
-                            + "for a different transaction"
+                    "idempotency key has already been used for a different transaction"
             );
         }
     }
 
-    private String normalizeIdempotencyKey(
-            String idempotencyKey
-    ) {
+    private String normalizeIdempotencyKey(String idempotencyKey) {
         Objects.requireNonNull(
                 idempotencyKey,
                 "idempotency key must not be null"
@@ -167,5 +127,17 @@ public final class InitiateTransferUseCase {
         }
 
         return normalized;
+    }
+
+    public record InitiationResult(
+            TransactionId transactionId,
+            boolean created
+    ) {
+        public InitiationResult {
+            Objects.requireNonNull(
+                    transactionId,
+                    "transaction id must not be null"
+            );
+        }
     }
 }
