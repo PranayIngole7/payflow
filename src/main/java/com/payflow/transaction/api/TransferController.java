@@ -1,7 +1,7 @@
 package com.payflow.transaction.api;
 
-import com.payflow.shared.domain.Currency;
 import com.payflow.shared.domain.Money;
+import com.payflow.transaction.application.ExecuteTransferUseCase;
 import com.payflow.transaction.application.InitiateTransferUseCase;
 import com.payflow.transaction.domain.TransactionId;
 import com.payflow.wallet.domain.WalletId;
@@ -9,9 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * REST API for transfer operations.
@@ -24,23 +22,30 @@ public class TransferController {
             "Idempotency-Key";
 
     private final InitiateTransferUseCase initiateTransferUseCase;
+    private final ExecuteTransferUseCase executeTransferUseCase;
 
     public TransferController(
-            InitiateTransferUseCase initiateTransferUseCase
+            InitiateTransferUseCase initiateTransferUseCase,
+            ExecuteTransferUseCase executeTransferUseCase
     ) {
         this.initiateTransferUseCase =
                 Objects.requireNonNull(
                         initiateTransferUseCase,
                         "initiate transfer use case must not be null"
                 );
+
+        this.executeTransferUseCase =
+                Objects.requireNonNull(
+                        executeTransferUseCase,
+                        "execute transfer use case must not be null"
+                );
     }
 
     /**
-     * Initiates a new transfer.
+     * Initiates and executes a wallet-to-wallet transfer.
      *
-     * <p>The request is protected by an idempotency key so clients can
-     * safely retry the same request without creating duplicate
-     * transactions.</p>
+     * <p>The idempotency key makes retries safe. If the transaction was
+     * already completed, the existing transaction ID is returned.</p>
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -59,6 +64,8 @@ public class TransferController {
                         ),
                         idempotencyKey
                 );
+
+        executeTransferUseCase.execute(transactionId);
 
         return InitiateTransferResponse.from(transactionId);
     }
