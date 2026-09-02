@@ -17,6 +17,7 @@ import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
 import org.springframework.boot.resttestclient.TestRestTemplate;
+import com.payflow.shared.api.ApiErrorResponse;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -212,6 +213,163 @@ class TransferPostgresIntegrationTest {
         assertEquals(
                 "postgres-idempotency-001",
                 transaction.getIdempotencyKey()
+        );
+    }
+    @Test
+    void shouldReturnSameTransactionForRepeatedIdempotentRequest() {
+
+        InitiateTransferRequest request =
+                new InitiateTransferRequest(
+                        sourceWalletId,
+                        destinationWalletId,
+                        new BigDecimal("250.00"),
+                        Currency.INR
+                );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Idempotency-Key", "postgres-retry-001");
+
+        HttpEntity<InitiateTransferRequest> entity =
+                new HttpEntity<>(request, headers);
+
+        ResponseEntity<InitiateTransferResponse> firstResponse =
+                restTemplate.exchange(
+                        url(),
+                        HttpMethod.POST,
+                        entity,
+                        InitiateTransferResponse.class
+                );
+
+        ResponseEntity<InitiateTransferResponse> secondResponse =
+                restTemplate.exchange(
+                        url(),
+                        HttpMethod.POST,
+                        entity,
+                        InitiateTransferResponse.class
+                );
+
+        assertEquals(HttpStatus.CREATED, firstResponse.getStatusCode());
+        assertEquals(HttpStatus.CREATED, secondResponse.getStatusCode());
+
+        assertNotNull(firstResponse.getBody());
+        assertNotNull(secondResponse.getBody());
+
+        UUID firstTransactionId =
+                firstResponse.getBody().transactionId();
+
+        UUID secondTransactionId =
+                secondResponse.getBody().transactionId();
+
+        assertEquals(firstTransactionId, secondTransactionId);
+
+        assertEquals(1, transactionRepository.count());
+
+        TransactionEntity transaction =
+                transactionRepository.findById(firstTransactionId)
+                        .orElseThrow();
+
+        assertEquals(TransactionStatus.COMPLETED, transaction.getStatus());
+        assertEquals("postgres-retry-001", transaction.getIdempotencyKey());
+        assertEquals(new BigDecimal("250.00"), transaction.getAmount());
+
+        WalletEntity sourceWallet =
+                walletRepository.findById(sourceWalletId)
+                        .orElseThrow();
+
+        WalletEntity destinationWallet =
+                walletRepository.findById(destinationWalletId)
+                        .orElseThrow();
+
+        assertEquals(
+                new BigDecimal("750.00"),
+                sourceWallet.getBalance()
+        );
+
+        assertEquals(
+                new BigDecimal("350.00"),
+                destinationWallet.getBalance()
+        );
+    }
+    @Test
+    void shouldRejectDifferentRequestUsingSameIdempotencyKey() {
+
+        InitiateTransferRequest firstRequest =
+                new InitiateTransferRequest(
+                        sourceWalletId,
+                        destinationWalletId,
+                        new BigDecimal("250.00"),
+                        Currency.INR
+                );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Idempotency-Key", "postgres-conflict-001");
+
+        HttpEntity<InitiateTransferRequest> firstEntity =
+                new HttpEntity<>(firstRequest, headers);
+
+        ResponseEntity<InitiateTransferResponse> firstResponse =
+                restTemplate.exchange(
+                        url(),
+                        HttpMethod.POST,
+                        firstEntity,
+                        InitiateTransferResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.CREATED,
+                firstResponse.getStatusCode()
+        );
+
+        assertNotNull(firstResponse.getBody());
+
+        UUID originalTransactionId =
+                firstResponse.getBody().transactionId();
+
+        InitiateTransferRequest secondRequest =
+                new InitiateTransferRequest(
+                        sourceWalletId,
+                        destinationWalletId,
+                        new BigDecimal("500.00"),
+                        Currency.INR
+                );
+
+        HttpEntity<InitiateTransferRequest> secondEntity =
+                new HttpEntity<>(secondRequest, headers);
+
+        ResponseEntity<ApiErrorResponse> secondResponse =
+                restTemplate.exchange(
+                        url(),
+                        HttpMethod.POST,
+                        secondEntity,
+                        ApiErrorResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.CONFLICT,
+                secondResponse.getStatusCode()
+        );
+
+        assertNotNull(secondResponse.getBody());
+
+        assertEquals(
+                HttpStatus.CONFLICT.value(),
+                secondResponse.getBody().status()
+        );
+
+        assertEquals(
+                "idempotency key has already been used for a different transaction",
+                secondResponse.getBody().message()
+        );
+
+        assertEquals(
+                1,
+                transactionRepository.count()
+        );
+
+        assertTrue(
+                transactionRepository.findById(originalTransactionId).isPresent()
         );
     }
 
