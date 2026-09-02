@@ -1,5 +1,6 @@
 package com.payflow.wallet.infrastructure;
 
+import com.payflow.account.application.AccountRepository;
 import com.payflow.shared.application.TransactionRunner;
 import com.payflow.wallet.application.CreateWalletUseCase;
 import com.payflow.wallet.application.GetWalletUseCase;
@@ -13,10 +14,12 @@ public class WalletApplicationConfiguration {
     @Bean
     public CreateWalletUseCase createWalletUseCase(
             WalletRepository walletRepository,
+            AccountRepository accountRepository,
             TransactionRunner transactionRunner
     ) {
         return new CreateWalletUseCase(
                 walletRepository,
+                accountRepository,
                 transactionRunner
         );
     }
