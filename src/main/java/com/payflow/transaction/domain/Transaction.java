@@ -1,6 +1,5 @@
 package com.payflow.transaction.domain;
 
-import com.payflow.shared.domain.Currency;
 import com.payflow.shared.domain.Money;
 import com.payflow.wallet.domain.WalletId;
 
@@ -8,15 +7,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Aggregate root representing a financial transaction.
- *
- * <p>The transaction represents the intent and lifecycle of a financial
- * operation between wallets. It does not directly modify wallet balances.
- * Wallet state changes will later be coordinated by the application layer
- * within an appropriate transaction boundary.</p>
- *
- * <p>A newly created transaction starts in {@link TransactionStatus#PENDING}.
- * Only a pending transaction may transition to a terminal state.</p>
+ * Aggregate root representing a financial transfer transaction.
  */
 public final class Transaction {
 
@@ -25,6 +16,7 @@ public final class Transaction {
     private final WalletId destinationWalletId;
     private final Money amount;
     private final Instant createdAt;
+    private final String idempotencyKey;
 
     private TransactionStatus status;
 
@@ -33,27 +25,34 @@ public final class Transaction {
             WalletId sourceWalletId,
             WalletId destinationWalletId,
             Money amount,
-            Instant createdAt
+            Instant createdAt,
+            String idempotencyKey,
+            TransactionStatus status
     ) {
         this.id = Objects.requireNonNull(
                 id,
                 "transaction id must not be null"
         );
+
         this.sourceWalletId = Objects.requireNonNull(
                 sourceWalletId,
                 "source wallet id must not be null"
         );
+
         this.destinationWalletId = Objects.requireNonNull(
                 destinationWalletId,
                 "destination wallet id must not be null"
         );
+
+        if (sourceWalletId.equals(destinationWalletId)) {
+            throw new IllegalArgumentException(
+                    "source and destination wallets must be different"
+            );
+        }
+
         this.amount = Objects.requireNonNull(
                 amount,
                 "amount must not be null"
-        );
-        this.createdAt = Objects.requireNonNull(
-                createdAt,
-                "createdAt must not be null"
         );
 
         if (!amount.isPositive()) {
@@ -62,24 +61,49 @@ public final class Transaction {
             );
         }
 
-        if (sourceWalletId.equals(destinationWalletId)) {
-            throw new IllegalArgumentException(
-                    "source and destination wallets must be different"
-            );
-        }
+        this.createdAt = Objects.requireNonNull(
+                createdAt,
+                "createdAt must not be null"
+        );
 
-        this.status = TransactionStatus.PENDING;
+        this.idempotencyKey = requireIdempotencyKey(
+                idempotencyKey
+        );
+
+        this.status = Objects.requireNonNull(
+                status,
+                "status must not be null"
+        );
     }
 
     /**
-     * Creates a new pending transaction.
+     * Creates a new transaction using an explicit idempotency key.
+     */
+    public static Transaction create(
+            TransactionId id,
+            WalletId sourceWalletId,
+            WalletId destinationWalletId,
+            Money amount,
+            Instant createdAt,
+            String idempotencyKey
+    ) {
+        return new Transaction(
+                id,
+                sourceWalletId,
+                destinationWalletId,
+                amount,
+                createdAt,
+                idempotencyKey,
+                TransactionStatus.PENDING
+        );
+    }
+
+    /**
+     * Backward-compatible factory for existing domain tests.
      *
-     * @param id unique transaction identifier
-     * @param sourceWalletId wallet from which funds originate
-     * @param destinationWalletId wallet receiving the funds
-     * @param amount positive monetary amount
-     * @param createdAt transaction creation timestamp
-     * @return newly created pending transaction
+     * <p>The transaction identifier is used as a deterministic fallback
+     * idempotency key. Production application code should always provide
+     * an explicit client idempotency key.</p>
      */
     public static Transaction create(
             TransactionId id,
@@ -88,31 +112,77 @@ public final class Transaction {
             Money amount,
             Instant createdAt
     ) {
+        Objects.requireNonNull(
+                id,
+                "transaction id must not be null"
+        );
+
+        return create(
+                id,
+                sourceWalletId,
+                destinationWalletId,
+                amount,
+                createdAt,
+                id.value().toString()
+        );
+    }
+
+    /**
+     * Reconstructs a persisted transaction with its original state.
+     */
+    public static Transaction reconstitute(
+            TransactionId id,
+            WalletId sourceWalletId,
+            WalletId destinationWalletId,
+            Money amount,
+            Instant createdAt,
+            String idempotencyKey,
+            TransactionStatus status
+    ) {
         return new Transaction(
                 id,
                 sourceWalletId,
                 destinationWalletId,
                 amount,
-                createdAt
+                createdAt,
+                idempotencyKey,
+                status
         );
     }
 
     /**
-     * Marks the transaction as successfully completed.
-     *
-     * <p>Only a pending transaction may be completed.</p>
+     * Backward-compatible reconstruction method for existing tests.
      */
+    public static Transaction reconstitute(
+            TransactionId id,
+            WalletId sourceWalletId,
+            WalletId destinationWalletId,
+            Money amount,
+            Instant createdAt,
+            TransactionStatus status
+    ) {
+        Objects.requireNonNull(
+                id,
+                "transaction id must not be null"
+        );
+
+        return reconstitute(
+                id,
+                sourceWalletId,
+                destinationWalletId,
+                amount,
+                createdAt,
+                id.value().toString(),
+                status
+        );
+    }
+
     public void complete() {
         requirePending("complete");
 
         status = TransactionStatus.COMPLETED;
     }
 
-    /**
-     * Marks the transaction as failed.
-     *
-     * <p>Only a pending transaction may be failed.</p>
-     */
     public void fail() {
         requirePending("fail");
 
@@ -135,7 +205,7 @@ public final class Transaction {
         return amount;
     }
 
-    public Currency currency() {
+    public com.payflow.shared.domain.Currency currency() {
         return amount.currency();
     }
 
@@ -143,19 +213,47 @@ public final class Transaction {
         return createdAt;
     }
 
+    public String idempotencyKey() {
+        return idempotencyKey;
+    }
+
     public TransactionStatus status() {
         return status;
     }
 
-    /**
-     * Ensures lifecycle transitions can only occur from PENDING.
-     */
     private void requirePending(String operation) {
         if (status != TransactionStatus.PENDING) {
             throw new IllegalStateException(
-                    "cannot " + operation
-                            + " transaction in status " + status
+                    "cannot "
+                            + operation
+                            + " transaction in status "
+                            + status
             );
         }
+    }
+
+    private static String requireIdempotencyKey(
+            String idempotencyKey
+    ) {
+        Objects.requireNonNull(
+                idempotencyKey,
+                "idempotency key must not be null"
+        );
+
+        String normalized = idempotencyKey.trim();
+
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "idempotency key must not be blank"
+            );
+        }
+
+        if (normalized.length() > 100) {
+            throw new IllegalArgumentException(
+                    "idempotency key must not exceed 100 characters"
+            );
+        }
+
+        return normalized;
     }
 }

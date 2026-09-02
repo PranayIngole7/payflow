@@ -5,6 +5,10 @@ import java.util.Objects;
 
 /**
  * Aggregate root representing a PayFlow account.
+ *
+ * <p>An account has a lifecycle independent of its wallets and
+ * transactions. Persistence may reconstruct an existing account
+ * while preserving its current status.</p>
  */
 public final class Account {
 
@@ -17,7 +21,10 @@ public final class Account {
             Instant createdAt,
             AccountStatus status
     ) {
-        this.id = Objects.requireNonNull(id, "account id must not be null");
+        this.id = Objects.requireNonNull(
+                id,
+                "account id must not be null"
+        );
         this.createdAt = Objects.requireNonNull(
                 createdAt,
                 "createdAt must not be null"
@@ -36,6 +43,24 @@ public final class Account {
                 id,
                 createdAt,
                 AccountStatus.ACTIVE
+        );
+    }
+
+    /**
+     * Reconstructs an existing account from persistent state.
+     *
+     * <p>Unlike {@link #create}, this method preserves the persisted
+     * account lifecycle status.</p>
+     */
+    public static Account reconstitute(
+            AccountId id,
+            Instant createdAt,
+            AccountStatus status
+    ) {
+        return new Account(
+                id,
+                createdAt,
+                status
         );
     }
 

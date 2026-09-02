@@ -573,6 +573,45 @@ class TransferMoneyUseCaseTest {
                 )
         );
     }
+    @Test
+    void shouldRejectAlreadyCompletedTransaction() {
+        transaction.complete();
+
+        when(transactionRepository.findById(transactionId))
+                .thenReturn(Optional.of(transaction));
+
+        executeRunnableImmediately();
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> useCase.execute(transactionId)
+        );
+
+        verify(transactionRunner).execute(any(Runnable.class));
+        verify(transactionRepository).findById(transactionId);
+
+        verifyNoInteractions(walletRepository, ledgerRepository);
+    }
+
+    @Test
+    void shouldRejectAlreadyFailedTransaction() {
+        transaction.fail();
+
+        when(transactionRepository.findById(transactionId))
+                .thenReturn(Optional.of(transaction));
+
+        executeRunnableImmediately();
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> useCase.execute(transactionId)
+        );
+
+        verify(transactionRunner).execute(any(Runnable.class));
+        verify(transactionRepository).findById(transactionId);
+
+        verifyNoInteractions(walletRepository, ledgerRepository);
+    }
 
     private void givenTransactionExists() {
         when(transactionRepository.findById(transactionId))

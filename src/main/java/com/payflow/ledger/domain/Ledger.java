@@ -39,6 +39,45 @@ public final class Ledger {
     }
 
     /**
+     * Reconstructs an existing ledger from persistent state.
+     *
+     * <p>The supplied entries are restored through the aggregate's
+     * normal invariant checks. Existing entries remain immutable and
+     * insertion order is preserved.</p>
+     *
+     * @param transactionId transaction represented by this ledger
+     * @param entries persisted ledger entries
+     * @return reconstructed ledger
+     */
+    public static Ledger reconstitute(
+            TransactionId transactionId,
+            List<LedgerEntry> entries
+    ) {
+        Objects.requireNonNull(
+                transactionId,
+                "transaction id must not be null"
+        );
+        Objects.requireNonNull(
+                entries,
+                "ledger entries must not be null"
+        );
+
+        Ledger ledger = new Ledger();
+        ledger.transactionId = transactionId;
+
+        for (LedgerEntry entry : entries) {
+            Objects.requireNonNull(
+                    entry,
+                    "ledger entries must not contain null"
+            );
+
+            ledger.add(entry);
+        }
+
+        return ledger;
+    }
+
+    /**
      * Creates a balanced ledger for a transaction.
      *
      * <p>The source wallet receives a debit entry and the destination wallet

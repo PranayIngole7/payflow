@@ -5,12 +5,13 @@ import com.payflow.transaction.domain.TransactionId;
 
 import java.util.Optional;
 
-/**
- * Persistence port for transaction aggregates.
- */
 public interface TransactionRepository {
 
     Optional<Transaction> findById(TransactionId transactionId);
+
+    Optional<Transaction> findByIdempotencyKey(
+            String idempotencyKey
+    );
 
     void save(Transaction transaction);
 }

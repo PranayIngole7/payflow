@@ -315,6 +315,78 @@ class LedgerTest {
         );
     }
 
+    @Test
+    void shouldReconstituteLedgerWithPersistedEntries() {
+        TransactionId transactionId = TransactionId.generate();
+        LedgerEntry debit = createDebitEntry(transactionId);
+        LedgerEntry credit = createCreditEntry(transactionId);
+
+        Ledger ledger = Ledger.reconstitute(
+                transactionId,
+                java.util.List.of(debit, credit)
+        );
+
+        assertEquals(
+                transactionId,
+                ledger.transactionId().orElseThrow()
+        );
+        assertEquals(2, ledger.entries().size());
+        assertEquals(debit, ledger.entries().get(0));
+        assertEquals(credit, ledger.entries().get(1));
+        assertTrue(ledger.isBalanced());
+    }
+
+    @Test
+    void shouldRejectReconstitutedLedgerEntryFromDifferentTransaction() {
+        TransactionId transactionId = TransactionId.generate();
+
+        LedgerEntry validEntry = createDebitEntry(transactionId);
+        LedgerEntry invalidEntry = createCreditEntry(
+                TransactionId.generate()
+        );
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> Ledger.reconstitute(
+                        transactionId,
+                        java.util.List.of(validEntry, invalidEntry)
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectNullReconstitutedLedgerTransactionId() {
+        assertThrows(
+                NullPointerException.class,
+                () -> Ledger.reconstitute(
+                        null,
+                        java.util.List.of()
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectNullReconstitutedLedgerEntries() {
+        assertThrows(
+                NullPointerException.class,
+                () -> Ledger.reconstitute(
+                        TransactionId.generate(),
+                        null
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectNullEntryDuringLedgerReconstitution() {
+        assertThrows(
+                NullPointerException.class,
+                () -> Ledger.reconstitute(
+                        TransactionId.generate(),
+                        java.util.List.of((LedgerEntry) null)
+                )
+        );
+    }
+
     private Transaction createTransaction() {
         return Transaction.create(
                 TransactionId.generate(),

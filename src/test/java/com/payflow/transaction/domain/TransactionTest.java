@@ -241,6 +241,69 @@ class TransactionTest {
         );
     }
 
+    @Test
+    void shouldReconstituteCompletedTransaction() {
+        TransactionId transactionId = TransactionId.generate();
+        WalletId sourceWalletId = WalletId.generate();
+        WalletId destinationWalletId = WalletId.generate();
+        Money amount = validAmount();
+        Instant createdAt = Instant.now();
+
+        Transaction transaction = Transaction.reconstitute(
+                transactionId,
+                sourceWalletId,
+                destinationWalletId,
+                amount,
+                createdAt,
+                TransactionStatus.COMPLETED
+        );
+
+        assertEquals(transactionId, transaction.id());
+        assertEquals(sourceWalletId, transaction.sourceWalletId());
+        assertEquals(
+                destinationWalletId,
+                transaction.destinationWalletId()
+        );
+        assertEquals(amount, transaction.amount());
+        assertEquals(createdAt, transaction.createdAt());
+        assertEquals(
+                TransactionStatus.COMPLETED,
+                transaction.status()
+        );
+    }
+
+    @Test
+    void shouldReconstituteFailedTransaction() {
+        Transaction transaction = Transaction.reconstitute(
+                TransactionId.generate(),
+                WalletId.generate(),
+                WalletId.generate(),
+                validAmount(),
+                Instant.now(),
+                TransactionStatus.FAILED
+        );
+
+        assertEquals(
+                TransactionStatus.FAILED,
+                transaction.status()
+        );
+    }
+
+    @Test
+    void shouldRejectNullReconstitutedTransactionStatus() {
+        assertThrows(
+                NullPointerException.class,
+                () -> Transaction.reconstitute(
+                        TransactionId.generate(),
+                        WalletId.generate(),
+                        WalletId.generate(),
+                        validAmount(),
+                        Instant.now(),
+                        null
+                )
+        );
+    }
+
     private Transaction createTransaction() {
         return Transaction.create(
                 TransactionId.generate(),

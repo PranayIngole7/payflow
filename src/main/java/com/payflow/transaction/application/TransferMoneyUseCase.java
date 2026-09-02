@@ -8,6 +8,7 @@ import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.shared.application.TransactionRunner;
 import com.payflow.transaction.domain.Transaction;
 import com.payflow.transaction.domain.TransactionId;
+import com.payflow.transaction.domain.TransactionStatus;
 import com.payflow.wallet.application.WalletRepository;
 import com.payflow.wallet.domain.Wallet;
 
@@ -15,16 +16,15 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
-
  * Application use case responsible for coordinating a wallet-to-wallet
  * transfer.
  *
  * <p>The individual aggregates remain responsible for their own business
  * rules. This class coordinates the operation across aggregates.</p>
  *
- * <p>The complete transfer is executed through {@link TransactionRunner}
- * so that the eventual infrastructure implementation can provide an
- * atomic database transaction.</p>
+ * <p>The complete transfer executes inside a transaction boundary so that
+ * wallet changes, ledger entries, and transaction state are committed
+ * atomically.</p>
  */
 public final class TransferMoneyUseCase {
 
@@ -58,7 +58,6 @@ public final class TransferMoneyUseCase {
     }
 
     /**
-
      * Executes a wallet-to-wallet transfer inside the application
      * transaction boundary.
      *
@@ -75,20 +74,29 @@ public final class TransferMoneyUseCase {
         );
     }
 
-    /**
-
-     * Performs the actual transfer operation.
-     *
-     * <p>This method is deliberately kept separate from {@link #execute}
-     * so that the transaction boundary remains explicit at the application
-     * entry point.</p>
-     */
     private void executeTransfer(TransactionId transactionId) {
+
         Transaction transaction = transactionRepository
                 .findById(transactionId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "transaction not found: " + transactionId
                 ));
+
+        /*
+         * A transaction may only be processed once.
+         *
+         * Check the lifecycle state before loading or modifying any
+         * financial aggregates.
+         */
+        if (transaction.status() != TransactionStatus.PENDING) {
+            throw new IllegalStateException(
+                    "transaction is not pending: "
+                            + transactionId
+                            + " (status="
+                            + transaction.status()
+                            + ")"
+            );
+        }
 
         Wallet sourceWallet = walletRepository
                 .findById(transaction.sourceWalletId())
@@ -104,6 +112,12 @@ public final class TransferMoneyUseCase {
                                 + transaction.destinationWalletId()
                 ));
 
+        /*
+         * Domain operations perform the actual financial rules.
+         *
+         * If debit fails, nothing is persisted because all persistence
+         * operations happen after the domain operations succeed.
+         */
         sourceWallet.debit(transaction.amount());
         destinationWallet.credit(transaction.amount());
 
@@ -143,6 +157,10 @@ public final class TransferMoneyUseCase {
 
         transaction.complete();
 
+        /*
+         * Persist all financial state only after every domain invariant
+         * has successfully passed.
+         */
         walletRepository.save(sourceWallet);
         walletRepository.save(destinationWallet);
         ledgerRepository.save(ledger);
