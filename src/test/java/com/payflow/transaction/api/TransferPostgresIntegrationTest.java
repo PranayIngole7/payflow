@@ -18,6 +18,9 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import com.payflow.shared.api.ApiErrorResponse;
+import com.payflow.transaction.api.TransactionResponse;
+import java.util.UUID;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -372,6 +375,80 @@ class TransferPostgresIntegrationTest {
                 transactionRepository.findById(originalTransactionId).isPresent()
         );
     }
+
+    @Test
+    void shouldGetCompletedTransferById() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Idempotency-Key", "postgres-get-transfer-001");
+
+        String requestBody = """
+        {
+          "sourceWalletId": "%s",
+          "destinationWalletId": "%s",
+          "amount": 250.00,
+          "currency": "INR"
+        }
+        """.formatted(sourceWalletId, destinationWalletId);
+
+        ResponseEntity<InitiateTransferResponse> createResponse =
+                restTemplate.exchange(
+                        "/api/v1/transfers",
+                        HttpMethod.POST,
+                        new HttpEntity<>(requestBody, headers),
+                        InitiateTransferResponse.class
+                );
+
+        assertThat(createResponse.getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+
+        UUID transactionId =
+                createResponse.getBody().transactionId();
+
+        ResponseEntity<TransactionResponse> getResponse =
+                restTemplate.getForEntity(
+                        "/api/v1/transfers/" + transactionId,
+                        TransactionResponse.class
+                );
+
+        assertThat(getResponse.getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+
+        TransactionResponse response = getResponse.getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.transactionId())
+                .isEqualTo(transactionId);
+        assertThat(response.sourceWalletId())
+                .isEqualTo(sourceWalletId);
+        assertThat(response.destinationWalletId())
+                .isEqualTo(destinationWalletId);
+        assertThat(response.amount())
+                .isEqualByComparingTo("250.00");
+        assertThat(response.currency())
+                .isEqualTo("INR");
+        assertThat(response.status())
+                .isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void shouldReturnNotFoundForUnknownTransfer() {
+        UUID transactionId = UUID.randomUUID();
+
+        ResponseEntity<ApiErrorResponse> response =
+                restTemplate.getForEntity(
+                        "/api/v1/transfers/" + transactionId,
+                        ApiErrorResponse.class
+                );
+
+        assertThat(response.getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message())
+                .contains("transaction not found");
+    }
+
 
     private String url() {
         return "http://localhost:"
