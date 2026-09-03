@@ -1,10 +1,44 @@
 # PayFlow — Project Progress Report
 
-**Project:** PayFlow  
-**Date:** 2 September 2026  
-**Current Phase:** Phase 4 — Architecture  
+**Date:** 3 September 2026  
+**Current Phase:** Phase 5 — Database Design  
 **Status:** COMPLETE  
-**Next Phase:** Phase 5 — Database Design
+**Next Phase:** Phase 6 — Spring Boot Foundation
+
+---
+
+| Phase | Description | Status |
+|---|---|---|
+| Phase 1 | Requirements & Product Definition | COMPLETE |
+| Phase 2 | Domain Modeling | COMPLETE |
+| Phase 3 | GitHub + Development Environment | COMPLETE |
+| Phase 4 | System Architecture | COMPLETE |
+| Phase 5 | Database Design | COMPLETE |
+| Phase 6 | Spring Boot Foundation | NEXT |
+| Phase 7 | User Service | PLANNED |
+| Phase 8 | Wallet Service | PLANNED |
+| Phase 9 | Payment Service | PLANNED |
+| Phase 10 | Ledger | PLANNED |
+| Phase 11 | Security | PLANNED |
+| Phase 12 | Transactions + Concurrency | PLANNED |
+| Phase 13 | Microservice Architecture | PLANNED |
+| Phase 14 | API Gateway | PLANNED |
+| Phase 15 | Kafka | PLANNED |
+| Phase 16 | Redis | PLANNED |
+| Phase 17 | AI Fraud Detection | PLANNED |
+| Phase 18 | AI Spending Insights | PLANNED |
+| Phase 19 | AI Transaction Assistant | PLANNED |
+| Phase 20 | RAG | PLANNED |
+| Phase 21 | Testing | PLANNED |
+| Phase 22 | Docker | PLANNED |
+| Phase 23 | Observability | PLANNED |
+| Phase 24 | CI/CD | PLANNED |
+| Phase 25 | AWS Deployment | PLANNED |
+| Phase 26 | Performance Testing | PLANNED |
+| Phase 27 | System Design Documentation | PLANNED |
+| Phase 28 | GitHub Portfolio | PLANNED |
+| Phase 29 | Resume | PLANNED |
+| Phase 30 | Interview Preparation | PLANNED |
 
 ---
 
@@ -32,20 +66,7 @@ The core financial model is based on:
 
 # 2. Project Phase Status
 
-| Phase | Description | Status |
-|---|---|---|
-| Phase 1 | Project Foundation | COMPLETE |
-| Phase 2 | Domain Modeling | COMPLETE |
-| Phase 3 | Development Setup | COMPLETE |
-| Phase 4 | Architecture | COMPLETE |
-| Phase 5 | Database Design | NEXT |
-| Phase 6 | Core Financial Flows | PLANNED |
-| Phase 7 | Event-Driven Architecture | PLANNED |
-| Phase 8 | Reliability & Resilience | PLANNED |
-| Phase 9 | Security | PLANNED |
-| Phase 10 | Observability | PLANNED |
-| Phase 11 | Performance & Scalability | PLANNED |
-| Phase 12 | Production Readiness | PLANNED |
+- Phase 1 through Phase 5 are complete.
 
 ---
 
@@ -116,4 +137,31 @@ com.payflow
     ├── domain
     └── infrastructure
 ```
+# 5. Phase 5 — Database Design
 
+## Status
+
+**COMPLETE**
+
+Phase 5 established and manually verified the initial PostgreSQL database design, including:
+
+- Core account, wallet, payment, transaction, and ledger tables
+- Payment attempts
+- Idempotency keys
+- Fraud assessments
+- Primary and foreign keys
+- UNIQUE and CHECK constraints
+- Query-driven indexes
+- Financial invariants
+- Database/application responsibility boundaries
+- Docker PostgreSQL persistence
+
+Detailed database documentation is available in:
+
+`docs/database-design.md`
+
+The schema was manually created and verified in PostgreSQL during Phase 5. Version-controlled database migrations are intentionally deferred to Phase 6 — Spring Boot Foundation.
+
+The next phase is:
+
+**Phase 6 — Spring Boot Foundation**
