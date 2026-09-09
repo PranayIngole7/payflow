@@ -46,17 +46,22 @@ public class AccountEntity {
 
     public AccountEntity(
             UUID id,
+            String email,
+            String firstName,
+            String lastName,
+            String passwordHash,
             AccountStatus status,
-            Instant createdAt
+            Instant createdAt,
+            Instant updatedAt
     ) {
         this.id = id;
-        this.email = "account-" + id + "@payflow.local";
-        this.passwordHash = "NOT_SET";
-        this.firstName = "PayFlow";
-        this.lastName = "Account";
+        this.email = email;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.passwordHash = passwordHash;
         this.status = status;
         this.createdAt = createdAt;
-        this.updatedAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 
     public UUID getId() {

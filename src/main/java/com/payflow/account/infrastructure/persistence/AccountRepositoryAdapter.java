@@ -5,11 +5,11 @@ import com.payflow.account.domain.Account;
 import com.payflow.account.domain.AccountId;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Optional;
 
 @Repository
-public class AccountRepositoryAdapter
-        implements AccountRepository {
+public class AccountRepositoryAdapter implements AccountRepository {
 
     private final SpringDataAccountRepository repository;
 
@@ -26,23 +26,31 @@ public class AccountRepositoryAdapter
     }
 
     @Override
-    public void save(Account account) {
-        repository.save(toEntity(account));
+    public void save(Account account, String passwordHash) {
+        Instant updatedAt = account.createdAt();
+
+        repository.save(
+                new AccountEntity(
+                        account.id().value(),
+                        account.email(),
+                        account.firstName(),
+                        account.lastName(),
+                        passwordHash,
+                        account.status(),
+                        account.createdAt(),
+                        updatedAt
+                )
+        );
     }
 
     private Account toDomain(AccountEntity entity) {
         return Account.reconstitute(
                 new AccountId(entity.getId()),
+                entity.getEmail(),
+                entity.getFirstName(),
+                entity.getLastName(),
                 entity.getCreatedAt(),
                 entity.getStatus()
-        );
-    }
-
-    private AccountEntity toEntity(Account account) {
-        return new AccountEntity(
-                account.id().value(),
-                account.status(),
-                account.createdAt()
         );
     }
 }

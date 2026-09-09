@@ -36,7 +36,10 @@ class AccountRepositoryAdapterTest {
 
         Account account = Account.create(
                 accountId,
-                createdAt
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                Instant.now()
         );
 
         accountRepository.save(account);
@@ -63,7 +66,10 @@ class AccountRepositoryAdapterTest {
 
         Account account = Account.create(
                 accountId,
-                Instant.parse("2026-09-02T10:15:00Z")
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                Instant.now()
         );
 
         account.suspend();
@@ -100,7 +106,10 @@ class AccountRepositoryAdapterTest {
 
         Account account = Account.create(
                 accountId,
-                createdAt
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                Instant.now()
         );
 
         accountRepository.save(account);
@@ -130,7 +139,10 @@ class AccountRepositoryAdapterTest {
 
         Account original = Account.create(
                 accountId,
-                createdAt
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                Instant.now()
         );
 
         original.suspend();

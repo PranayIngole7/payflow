@@ -18,6 +18,9 @@ class GetAccountUseCaseTest {
 
         Account account = Account.create(
                 accountId,
+                "alice@example.com",
+                "Alice",
+                "Smith",
                 Instant.now()
         );
 

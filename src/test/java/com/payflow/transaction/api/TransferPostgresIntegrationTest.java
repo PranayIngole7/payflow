@@ -83,19 +83,34 @@ class TransferPostgresIntegrationTest {
     	walletRepository.deleteAll();
     	accountRepository.deleteAll();
 
-        AccountEntity sourceAccount =
-                new AccountEntity(
-                        UUID.randomUUID(),
-                        AccountStatus.ACTIVE,
-                        Instant.now()
-                );
+    	UUID sourceAccountId = UUID.randomUUID();
+    	UUID destinationAccountId = UUID.randomUUID();
 
-        AccountEntity destinationAccount =
-                new AccountEntity(
-                        UUID.randomUUID(),
-                        AccountStatus.ACTIVE,
-                        Instant.now()
-                );
+    	Instant createdAt = Instant.now();
+
+    	AccountEntity sourceAccount =
+    	        new AccountEntity(
+    	                sourceAccountId,
+    	                "alice@example.com",
+    	                "Alice",
+    	                "Smith",
+    	                "UNUSED",
+    	                AccountStatus.ACTIVE,
+    	                createdAt,
+    	                createdAt
+    	        );
+
+    	AccountEntity destinationAccount =
+    	        new AccountEntity(
+    	                destinationAccountId,
+    	                "bob@example.com",
+    	                "Bob",
+    	                "Jones",
+    	                "UNUSED",
+    	                AccountStatus.ACTIVE,
+    	                createdAt,
+    	                createdAt
+    	        );
 
         accountRepository.save(sourceAccount);
         accountRepository.save(destinationAccount);

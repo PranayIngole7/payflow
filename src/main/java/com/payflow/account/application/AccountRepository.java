@@ -9,5 +9,5 @@ public interface AccountRepository {
 
     Optional<Account> findById(AccountId accountId);
 
-    void save(Account account);
+    void save(Account account, String passwordHash);
 }

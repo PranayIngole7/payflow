@@ -305,26 +305,34 @@ class TransactionRepositoryAdapterTest {
         UUID sourceAccountId = UUID.randomUUID();
         UUID destinationAccountId = UUID.randomUUID();
 
+        Instant createdAt = Instant.now();
+
         accountRepository.save(
                 new AccountEntity(
                         sourceAccountId,
+                        "alice@example.com",
+                        "Alice",
+                        "Smith",
+                        "UNUSED",
                         AccountStatus.ACTIVE,
-                        Instant.parse(
-                                "2026-09-01T10:00:00Z"
-                        )
+                        createdAt,
+                        createdAt
                 )
         );
 
         accountRepository.save(
                 new AccountEntity(
                         destinationAccountId,
+                        "bob@example.com",
+                        "Bob",
+                        "Jones",
+                        "UNUSED",
                         AccountStatus.ACTIVE,
-                        Instant.parse(
-                                "2026-09-01T10:01:00Z"
-                        )
+                        createdAt,
+                        createdAt
                 )
         );
-
+        
         walletRepository.save(
                 new WalletEntity(
                         sourceWalletId.value(),
