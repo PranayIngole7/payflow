@@ -1,14 +1,12 @@
 package com.payflow.transaction.infrastructure.persistence;
 
 import com.payflow.shared.domain.Currency;
-import com.payflow.transaction.domain.TransactionStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -17,8 +15,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "transactions")
-public class TransactionEntity {
+@Table(name = "payments")
+public class PaymentEntity {
 
     @Id
     @Column(nullable = false, updatable = false)
@@ -27,8 +25,8 @@ public class TransactionEntity {
     @Column(nullable = false, length = 100)
     private String reference;
 
-    @Column(name = "payment_id", nullable = false)
-    private UUID paymentId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "source_wallet_id")
     private UUID sourceWalletId;
@@ -49,44 +47,41 @@ public class TransactionEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    private TransactionStatus status;
+    private TransactionStatusValue status;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    @Column(name = "completed_at")
-    private Instant completedAt;
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
-    @Transient
-    private String idempotencyKey;
-
-    protected TransactionEntity() {
+    protected PaymentEntity() {
     }
 
-    public TransactionEntity(
+    public PaymentEntity(
             UUID id,
             String reference,
-            UUID paymentId,
+            UUID userId,
             UUID sourceWalletId,
             UUID destinationWalletId,
             String type,
             BigDecimal amount,
             Currency currency,
+            TransactionStatusValue status,
             Instant createdAt,
-            TransactionStatus status,
-            Instant completedAt
+            Instant updatedAt
     ) {
         this.id = id;
         this.reference = reference;
-        this.paymentId = paymentId;
+        this.userId = userId;
         this.sourceWalletId = sourceWalletId;
         this.destinationWalletId = destinationWalletId;
         this.type = type;
         this.amount = amount;
         this.currency = currency;
-        this.createdAt = createdAt;
         this.status = status;
-        this.completedAt = completedAt;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 
     public UUID getId() {
@@ -97,8 +92,8 @@ public class TransactionEntity {
         return reference;
     }
 
-    public UUID getPaymentId() {
-        return paymentId;
+    public UUID getUserId() {
+        return userId;
     }
 
     public UUID getSourceWalletId() {
@@ -121,7 +116,7 @@ public class TransactionEntity {
         return currency;
     }
 
-    public TransactionStatus getStatus() {
+    public TransactionStatusValue getStatus() {
         return status;
     }
 
@@ -129,15 +124,14 @@ public class TransactionEntity {
         return createdAt;
     }
 
-    public Instant getCompletedAt() {
-        return completedAt;
+    public Instant getUpdatedAt() {
+        return updatedAt;
     }
 
-    public String getIdempotencyKey() {
-        return idempotencyKey;
-    }
-
-    public void setIdempotencyKey(String idempotencyKey) {
-        this.idempotencyKey = idempotencyKey;
+    public enum TransactionStatusValue {
+        PENDING,
+        COMPLETED,
+        FAILED,
+        CANCELLED
     }
 }

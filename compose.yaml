@@ -21,6 +21,7 @@ services:
       timeout: 5s
       retries: 5
 
+
   redis:
     image: redis:7
     container_name: payflow-redis
@@ -33,6 +34,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
 
   kafka:
     image: apache/kafka:4.0.0
@@ -47,6 +49,7 @@ services:
 
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
 
@@ -70,6 +73,6 @@ services:
       retries: 10
       start_period: 20s
 
+
 volumes:
   payflow_postgres_data:
-

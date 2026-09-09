@@ -1,6 +1,8 @@
 package com.payflow.transaction.infrastructure.persistence;
 
-import com.payflow.account.domain.AccountId;
+import com.payflow.account.domain.AccountStatus;
+import com.payflow.account.infrastructure.persistence.AccountEntity;
+import com.payflow.account.infrastructure.persistence.SpringDataAccountRepository;
 import com.payflow.shared.domain.Currency;
 import com.payflow.shared.domain.Money;
 import com.payflow.transaction.application.TransactionRepository;
@@ -8,6 +10,8 @@ import com.payflow.transaction.domain.Transaction;
 import com.payflow.transaction.domain.TransactionId;
 import com.payflow.transaction.domain.TransactionStatus;
 import com.payflow.wallet.domain.WalletId;
+import com.payflow.wallet.infrastructure.persistence.SpringDataWalletRepository;
+import com.payflow.wallet.infrastructure.persistence.WalletEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +34,12 @@ class TransactionRepositoryAdapterTest {
     @Autowired
     private SpringDataTransactionRepository springDataRepository;
 
+    @Autowired
+    private SpringDataAccountRepository accountRepository;
+
+    @Autowired
+    private SpringDataWalletRepository walletRepository;
+
     @Test
     void shouldSaveAndLoadPendingTransaction() {
         TransactionId transactionId =
@@ -43,6 +53,11 @@ class TransactionRepositoryAdapterTest {
 
         Instant createdAt = Instant.parse(
                 "2026-09-02T10:00:00Z"
+        );
+
+        createWalletFixtures(
+                sourceWalletId,
+                destinationWalletId
         );
 
         Transaction transaction = Transaction.create(
@@ -91,6 +106,11 @@ class TransactionRepositoryAdapterTest {
         WalletId destinationWalletId =
                 new WalletId(UUID.randomUUID());
 
+        createWalletFixtures(
+                sourceWalletId,
+                destinationWalletId
+        );
+
         Transaction transaction = Transaction.create(
                 transactionId,
                 sourceWalletId,
@@ -124,6 +144,11 @@ class TransactionRepositoryAdapterTest {
 
         WalletId destinationWalletId =
                 new WalletId(UUID.randomUUID());
+
+        createWalletFixtures(
+                sourceWalletId,
+                destinationWalletId
+        );
 
         Transaction transaction = Transaction.create(
                 transactionId,
@@ -172,6 +197,11 @@ class TransactionRepositoryAdapterTest {
 
         Instant createdAt = Instant.parse(
                 "2026-09-02T11:00:00Z"
+        );
+
+        createWalletFixtures(
+                sourceWalletId,
+                destinationWalletId
         );
 
         Transaction transaction = Transaction.create(
@@ -228,6 +258,11 @@ class TransactionRepositoryAdapterTest {
                 "2026-09-02T12:00:00Z"
         );
 
+        createWalletFixtures(
+                sourceWalletId,
+                destinationWalletId
+        );
+
         Transaction original = Transaction.create(
                 transactionId,
                 sourceWalletId,
@@ -261,5 +296,51 @@ class TransactionRepositoryAdapterTest {
                 .isEqualTo(original.createdAt());
         assertThat(restored.status())
                 .isEqualTo(original.status());
+    }
+
+    private void createWalletFixtures(
+            WalletId sourceWalletId,
+            WalletId destinationWalletId
+    ) {
+        UUID sourceAccountId = UUID.randomUUID();
+        UUID destinationAccountId = UUID.randomUUID();
+
+        accountRepository.save(
+                new AccountEntity(
+                        sourceAccountId,
+                        AccountStatus.ACTIVE,
+                        Instant.parse(
+                                "2026-09-01T10:00:00Z"
+                        )
+                )
+        );
+
+        accountRepository.save(
+                new AccountEntity(
+                        destinationAccountId,
+                        AccountStatus.ACTIVE,
+                        Instant.parse(
+                                "2026-09-01T10:01:00Z"
+                        )
+                )
+        );
+
+        walletRepository.save(
+                new WalletEntity(
+                        sourceWalletId.value(),
+                        sourceAccountId,
+                        Currency.INR,
+                        new BigDecimal("10000.00")
+                )
+        );
+
+        walletRepository.save(
+                new WalletEntity(
+                        destinationWalletId.value(),
+                        destinationAccountId,
+                        Currency.INR,
+                        new BigDecimal("10000.00")
+                )
+        );
     }
 }

@@ -4,6 +4,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.UUID;
 
-public interface SpringDataTransactionRepository
-        extends JpaRepository<TransactionEntity, UUID> {
+public interface SpringDataPaymentRepository
+        extends JpaRepository<PaymentEntity, UUID> {
 }

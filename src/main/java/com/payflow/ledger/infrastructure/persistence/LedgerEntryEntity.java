@@ -3,6 +3,8 @@ package com.payflow.ledger.infrastructure.persistence;
 import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.shared.domain.Currency;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -26,11 +28,12 @@ public class LedgerEntryEntity {
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(nullable = false, length = 3)
     private Currency currency;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
+    @Column(name = "entry_type", nullable = false, length = 10)
     private LedgerEntryType type;
 
     @Column(name = "created_at", nullable = false)
