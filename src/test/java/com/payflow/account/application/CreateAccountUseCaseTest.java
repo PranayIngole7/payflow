@@ -18,14 +18,24 @@ class CreateAccountUseCaseTest {
         AtomicReference<String> savedPasswordHash = new AtomicReference<>();
 
         AccountRepository repository = new AccountRepository() {
+
             @Override
             public Optional<Account> findById(
-                    com.payflow.account.domain.AccountId accountId) {
+                    com.payflow.account.domain.AccountId accountId
+            ) {
                 return Optional.ofNullable(savedAccount.get());
             }
 
             @Override
-            public void save(Account account, String passwordHash) {
+            public Optional<Account> findByEmail(String email) {
+                return Optional.empty();
+            }
+
+            @Override
+            public void save(
+                    Account account,
+                    String passwordHash
+            ) {
                 savedAccount.set(account);
                 savedPasswordHash.set(passwordHash);
             }
@@ -69,5 +79,77 @@ class CreateAccountUseCaseTest {
                 "hashed-password",
                 savedPasswordHash.get()
         );
+    }
+
+    @Test
+    void shouldRejectDuplicateEmail() {
+        Account existingAccount = Account.create(
+                com.payflow.account.domain.AccountId.generate(),
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                java.time.Instant.now()
+        );
+
+        AtomicReference<Boolean> saveCalled =
+                new AtomicReference<>(false);
+
+        AccountRepository repository = new AccountRepository() {
+
+            @Override
+            public Optional<Account> findById(
+                    com.payflow.account.domain.AccountId accountId
+            ) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Account> findByEmail(String email) {
+                return Optional.of(existingAccount);
+            }
+
+            @Override
+            public void save(
+                    Account account,
+                    String passwordHash
+            ) {
+                saveCalled.set(true);
+            }
+        };
+
+        PasswordHasher passwordHasher = rawPassword -> {
+            fail("password should not be hashed for a duplicate email");
+            return "unreachable";
+        };
+
+        TransactionRunner transactionRunner =
+                operation -> operation.run();
+
+        CreateAccountUseCase useCase =
+                new CreateAccountUseCase(
+                        repository,
+                        passwordHasher,
+                        transactionRunner
+                );
+
+        RegisterAccountCommand command =
+                new RegisterAccountCommand(
+                        "alice@example.com",
+                        "Bob",
+                        "Jones",
+                        "Password123"
+                );
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> useCase.execute(command)
+        );
+
+        assertEquals(
+                "account already exists for email: alice@example.com",
+                exception.getMessage()
+        );
+
+        assertFalse(saveCalled.get());
     }
 }

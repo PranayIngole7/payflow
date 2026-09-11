@@ -9,5 +9,7 @@ public interface AccountRepository {
 
     Optional<Account> findById(AccountId accountId);
 
+    Optional<Account> findByEmail(String email);
+
     void save(Account account, String passwordHash);
 }

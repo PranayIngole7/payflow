@@ -40,6 +40,13 @@ public final class CreateAccountUseCase {
                 "register account command must not be null"
         );
 
+        if (accountRepository.findByEmail(command.email()).isPresent()) {
+            throw new IllegalStateException(
+                    "account already exists for email: "
+                            + command.email()
+            );
+        }
+
         AccountId accountId = AccountId.generate();
         Instant createdAt = Instant.now();
 

@@ -26,6 +26,12 @@ public class AccountRepositoryAdapter implements AccountRepository {
     }
 
     @Override
+    public Optional<Account> findByEmail(String email) {
+        return repository.findByEmail(email)
+                .map(this::toDomain);
+    }
+
+    @Override
     public void save(Account account, String passwordHash) {
         Instant updatedAt = account.createdAt();
 

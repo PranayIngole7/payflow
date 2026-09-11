@@ -25,9 +25,15 @@ class GetAccountUseCaseTest {
         );
 
         AccountRepository repository = new AccountRepository() {
+
             @Override
             public Optional<Account> findById(AccountId id) {
                 return Optional.of(account);
+            }
+
+            @Override
+            public Optional<Account> findByEmail(String email) {
+                return Optional.empty();
             }
 
             @Override
@@ -54,8 +60,14 @@ class GetAccountUseCaseTest {
         AccountId accountId = AccountId.generate();
 
         AccountRepository repository = new AccountRepository() {
+
             @Override
             public Optional<Account> findById(AccountId id) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Account> findByEmail(String email) {
                 return Optional.empty();
             }
 
@@ -86,8 +98,14 @@ class GetAccountUseCaseTest {
     @Test
     void shouldRejectNullAccountId() {
         AccountRepository repository = new AccountRepository() {
+
             @Override
             public Optional<Account> findById(AccountId id) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Account> findByEmail(String email) {
                 return Optional.empty();
             }
 
