@@ -43,6 +43,11 @@ class GetAccountUseCaseTest {
             ) {
                 // Not used by this test.
             }
+
+            @Override
+            public void update(Account account) {
+                // Not used by this test.
+            }
         };
 
         GetAccountUseCase useCase =
@@ -76,6 +81,11 @@ class GetAccountUseCaseTest {
                     Account account,
                     String passwordHash
             ) {
+                // Not used by this test.
+            }
+
+            @Override
+            public void update(Account account) {
                 // Not used by this test.
             }
         };
@@ -114,6 +124,11 @@ class GetAccountUseCaseTest {
                     Account account,
                     String passwordHash
             ) {
+                // Not used by this test.
+            }
+
+            @Override
+            public void update(Account account) {
                 // Not used by this test.
             }
         };

@@ -3,14 +3,15 @@ package com.payflow.account.api;
 import com.payflow.account.application.CreateAccountUseCase;
 import com.payflow.account.application.GetAccountUseCase;
 import com.payflow.account.application.RegisterAccountCommand;
+import com.payflow.account.application.SuspendAccountUseCase;
 import com.payflow.account.domain.Account;
+import com.payflow.account.domain.AccountId;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import com.payflow.account.domain.AccountId;
 
 import java.util.UUID;
 
@@ -20,13 +21,16 @@ public class AccountController {
 
     private final CreateAccountUseCase createAccountUseCase;
     private final GetAccountUseCase getAccountUseCase;
+    private final SuspendAccountUseCase suspendAccountUseCase;
 
     public AccountController(
             CreateAccountUseCase createAccountUseCase,
-            GetAccountUseCase getAccountUseCase
+            GetAccountUseCase getAccountUseCase,
+            SuspendAccountUseCase suspendAccountUseCase
     ) {
         this.createAccountUseCase = createAccountUseCase;
         this.getAccountUseCase = getAccountUseCase;
+        this.suspendAccountUseCase = suspendAccountUseCase;
     }
 
     @PostMapping
@@ -50,11 +54,21 @@ public class AccountController {
     public AccountResponse getAccount(
             @PathVariable UUID accountId
     ) {
-    	return AccountResponse.from(
-    	        getAccountUseCase.execute(
-    	                new AccountId(accountId)
-    	        )
-    	);
+        return AccountResponse.from(
+                getAccountUseCase.execute(
+                        new AccountId(accountId)
+                )
+        );
+    }
+
+    @PatchMapping("/{accountId}/suspend")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void suspendAccount(
+            @PathVariable UUID accountId
+    ) {
+        suspendAccountUseCase.execute(
+                new AccountId(accountId)
+        );
     }
 
     public record RegisterAccountRequest(

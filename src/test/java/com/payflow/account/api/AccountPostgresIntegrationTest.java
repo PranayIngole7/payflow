@@ -136,7 +136,7 @@ class AccountPostgresIntegrationTest {
                 response.getStatusCode()
         );
     }
-    
+
     @Test
     void shouldRejectDuplicateEmail() {
         String email =
@@ -182,7 +182,7 @@ class AccountPostgresIntegrationTest {
                 )
         );
     }
-    
+
     @Test
     void shouldRejectInvalidAccountId() {
         ResponseEntity<String> response =
@@ -198,5 +198,172 @@ class AccountPostgresIntegrationTest {
 
         assertNotNull(response.getBody());
     }
-    
+
+    @Test
+    void shouldSuspendAccount() {
+        String email =
+                "suspend-" + UUID.randomUUID() + "@example.com";
+
+        AccountController.RegisterAccountRequest request =
+                new AccountController.RegisterAccountRequest(
+                        email,
+                        "Pranay",
+                        "Ingole",
+                        "StrongPassword123"
+                );
+
+        ResponseEntity<AccountResponse> createResponse =
+                restTemplate.postForEntity(
+                        "/api/v1/accounts",
+                        request,
+                        AccountResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.CREATED,
+                createResponse.getStatusCode()
+        );
+        assertNotNull(createResponse.getBody());
+
+        UUID accountId =
+                createResponse.getBody().accountId();
+
+        ResponseEntity<Void> suspendResponse =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId + "/suspend",
+                        HttpMethod.PATCH,
+                        HttpEntity.EMPTY,
+                        Void.class
+                );
+
+        assertEquals(
+                HttpStatus.NO_CONTENT,
+                suspendResponse.getStatusCode()
+        );
+
+        ResponseEntity<AccountResponse> getResponse =
+                restTemplate.getForEntity(
+                        "/api/v1/accounts/" + accountId,
+                        AccountResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.OK,
+                getResponse.getStatusCode()
+        );
+        assertNotNull(getResponse.getBody());
+
+        assertEquals(
+                "SUSPENDED",
+                getResponse.getBody().status()
+        );
+    }
+
+    @Test
+    void shouldRejectSuspendingAlreadySuspendedAccount() {
+        String email =
+                "already-suspended-" + UUID.randomUUID() + "@example.com";
+
+        AccountController.RegisterAccountRequest request =
+                new AccountController.RegisterAccountRequest(
+                        email,
+                        "Pranay",
+                        "Ingole",
+                        "StrongPassword123"
+                );
+
+        ResponseEntity<AccountResponse> createResponse =
+                restTemplate.postForEntity(
+                        "/api/v1/accounts",
+                        request,
+                        AccountResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.CREATED,
+                createResponse.getStatusCode()
+        );
+        assertNotNull(createResponse.getBody());
+
+        UUID accountId =
+                createResponse.getBody().accountId();
+
+        ResponseEntity<Void> firstSuspendResponse =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId + "/suspend",
+                        HttpMethod.PATCH,
+                        HttpEntity.EMPTY,
+                        Void.class
+                );
+
+        assertEquals(
+                HttpStatus.NO_CONTENT,
+                firstSuspendResponse.getStatusCode()
+        );
+
+        ResponseEntity<String> secondSuspendResponse =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId + "/suspend",
+                        HttpMethod.PATCH,
+                        HttpEntity.EMPTY,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.CONFLICT,
+                secondSuspendResponse.getStatusCode()
+        );
+
+        assertNotNull(secondSuspendResponse.getBody());
+
+        assertTrue(
+                secondSuspendResponse.getBody().contains(
+                        "account is already suspended"
+                )
+        );
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenSuspendingUnknownAccount() {
+        UUID accountId = UUID.randomUUID();
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId + "/suspend",
+                        HttpMethod.PATCH,
+                        HttpEntity.EMPTY,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.NOT_FOUND,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains(
+                        "account not found: " + accountId
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectInvalidAccountIdWhenSuspending() {
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/api/v1/accounts/not-a-uuid/suspend",
+                        HttpMethod.PATCH,
+                        HttpEntity.EMPTY,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.BAD_REQUEST,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+    }
 }

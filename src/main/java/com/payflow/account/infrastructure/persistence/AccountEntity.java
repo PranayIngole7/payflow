@@ -1,12 +1,7 @@
 package com.payflow.account.infrastructure.persistence;
 
 import com.payflow.account.domain.AccountStatus;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -61,6 +56,14 @@ public class AccountEntity {
         this.passwordHash = passwordHash;
         this.status = status;
         this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public void updateStatus(
+            AccountStatus status,
+            Instant updatedAt
+    ) {
+        this.status = status;
         this.updatedAt = updatedAt;
     }
 

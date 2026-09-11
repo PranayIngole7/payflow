@@ -6,6 +6,7 @@ import com.payflow.account.domain.AccountId;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 @Repository
@@ -47,6 +48,21 @@ public class AccountRepositoryAdapter implements AccountRepository {
                         updatedAt
                 )
         );
+    }
+
+    @Override
+    public void update(Account account) {
+        AccountEntity entity = repository.findById(account.id().value())
+                .orElseThrow(() -> new NoSuchElementException(
+                        "account not found: " + account.id().value()
+                ));
+
+        entity.updateStatus(
+                account.status(),
+                Instant.now()
+        );
+
+        repository.save(entity);
     }
 
     private Account toDomain(AccountEntity entity) {

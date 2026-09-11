@@ -39,6 +39,11 @@ class CreateAccountUseCaseTest {
                 savedAccount.set(account);
                 savedPasswordHash.set(passwordHash);
             }
+
+            @Override
+            public void update(Account account) {
+                // Not used by this test.
+            }
         };
 
         PasswordHasher passwordHasher = rawPassword -> {
@@ -114,6 +119,11 @@ class CreateAccountUseCaseTest {
                     String passwordHash
             ) {
                 saveCalled.set(true);
+            }
+
+            @Override
+            public void update(Account account) {
+                // Not used by this test.
             }
         };
 

@@ -12,4 +12,6 @@ public interface AccountRepository {
     Optional<Account> findByEmail(String email);
 
     void save(Account account, String passwordHash);
+
+    void update(Account account);
 }
