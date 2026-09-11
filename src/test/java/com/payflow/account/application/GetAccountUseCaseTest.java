@@ -31,7 +31,10 @@ class GetAccountUseCaseTest {
             }
 
             @Override
-            public void save(Account account) {
+            public void save(
+                    Account account,
+                    String passwordHash
+            ) {
                 // Not used by this test.
             }
         };
@@ -57,7 +60,10 @@ class GetAccountUseCaseTest {
             }
 
             @Override
-            public void save(Account account) {
+            public void save(
+                    Account account,
+                    String passwordHash
+            ) {
                 // Not used by this test.
             }
         };
@@ -86,7 +92,10 @@ class GetAccountUseCaseTest {
             }
 
             @Override
-            public void save(Account account) {
+            public void save(
+                    Account account,
+                    String passwordHash
+            ) {
                 // Not used by this test.
             }
         };

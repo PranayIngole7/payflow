@@ -39,10 +39,13 @@ class AccountRepositoryAdapterTest {
                 "alice@example.com",
                 "Alice",
                 "Smith",
-                Instant.now()
+                createdAt
         );
 
-        accountRepository.save(account);
+        accountRepository.save(
+                account,
+                "test-password-hash"
+        );
 
         Optional<Account> result =
                 accountRepository.findById(accountId);
@@ -53,8 +56,10 @@ class AccountRepositoryAdapterTest {
 
         assertThat(loaded.id())
                 .isEqualTo(accountId);
+
         assertThat(loaded.createdAt())
                 .isEqualTo(createdAt);
+
         assertThat(loaded.status())
                 .isEqualTo(AccountStatus.ACTIVE);
     }
@@ -64,17 +69,24 @@ class AccountRepositoryAdapterTest {
         AccountId accountId =
                 new AccountId(UUID.randomUUID());
 
+        Instant createdAt = Instant.parse(
+                "2026-09-02T10:30:00Z"
+        );
+
         Account account = Account.create(
                 accountId,
                 "alice@example.com",
                 "Alice",
                 "Smith",
-                Instant.now()
+                createdAt
         );
 
         account.suspend();
 
-        accountRepository.save(account);
+        accountRepository.save(
+                account,
+                "test-password-hash"
+        );
 
         Account loaded =
                 accountRepository.findById(accountId)
@@ -109,10 +121,13 @@ class AccountRepositoryAdapterTest {
                 "alice@example.com",
                 "Alice",
                 "Smith",
-                Instant.now()
+                createdAt
         );
 
-        accountRepository.save(account);
+        accountRepository.save(
+                account,
+                "test-password-hash"
+        );
 
         AccountEntity entity =
                 springDataRepository.findById(accountId.value())
@@ -126,6 +141,9 @@ class AccountRepositoryAdapterTest {
 
         assertThat(entity.getCreatedAt())
                 .isEqualTo(createdAt);
+
+        assertThat(entity.getPasswordHash())
+                .isEqualTo("test-password-hash");
     }
 
     @Test
@@ -142,12 +160,15 @@ class AccountRepositoryAdapterTest {
                 "alice@example.com",
                 "Alice",
                 "Smith",
-                Instant.now()
+                createdAt
         );
 
         original.suspend();
 
-        accountRepository.save(original);
+        accountRepository.save(
+                original,
+                "test-password-hash"
+        );
 
         Account restored =
                 accountRepository.findById(accountId)
@@ -155,8 +176,10 @@ class AccountRepositoryAdapterTest {
 
         assertThat(restored.id())
                 .isEqualTo(original.id());
+
         assertThat(restored.createdAt())
                 .isEqualTo(original.createdAt());
+
         assertThat(restored.status())
                 .isEqualTo(original.status());
     }

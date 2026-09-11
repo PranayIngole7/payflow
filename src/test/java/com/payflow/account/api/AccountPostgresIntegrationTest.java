@@ -26,10 +26,18 @@ class AccountPostgresIntegrationTest {
 
     @Test
     void shouldCreateAccount() {
+        AccountController.RegisterAccountRequest request =
+                new AccountController.RegisterAccountRequest(
+                        "pranay-" + UUID.randomUUID() + "@example.com",
+                        "Pranay",
+                        "Ingole",
+                        "StrongPassword123"
+                );
+
         ResponseEntity<AccountResponse> response =
                 restTemplate.postForEntity(
                         "/api/v1/accounts",
-                        null,
+                        request,
                         AccountResponse.class
                 );
 
@@ -45,10 +53,21 @@ class AccountPostgresIntegrationTest {
 
     @Test
     void shouldCreateAndGetAccount() {
+        String email =
+                "pranay-" + UUID.randomUUID() + "@example.com";
+
+        AccountController.RegisterAccountRequest request =
+                new AccountController.RegisterAccountRequest(
+                        email,
+                        "Pranay",
+                        "Ingole",
+                        "StrongPassword123"
+                );
+
         ResponseEntity<AccountResponse> createResponse =
                 restTemplate.postForEntity(
                         "/api/v1/accounts",
-                        null,
+                        request,
                         AccountResponse.class
                 );
 
@@ -87,10 +106,34 @@ class AccountPostgresIntegrationTest {
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertNotNull(response.getBody());
+
         assertTrue(
                 response.getBody().contains(
                         "account not found: " + accountId
                 )
+        );
+    }
+
+    @Test
+    void shouldRejectInvalidRegistrationRequest() {
+        AccountController.RegisterAccountRequest request =
+                new AccountController.RegisterAccountRequest(
+                        "invalid-email",
+                        "",
+                        "",
+                        "short"
+                );
+
+        ResponseEntity<String> response =
+                restTemplate.postForEntity(
+                        "/api/v1/accounts",
+                        request,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.BAD_REQUEST,
+                response.getStatusCode()
         );
     }
 }
