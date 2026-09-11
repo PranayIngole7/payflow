@@ -366,4 +366,162 @@ class AccountPostgresIntegrationTest {
 
         assertNotNull(response.getBody());
     }
+
+
+    @Test
+    void shouldUpdateAccountProfile() {
+        String email =
+                "update-" + UUID.randomUUID() + "@example.com";
+
+        AccountController.RegisterAccountRequest createRequest =
+                new AccountController.RegisterAccountRequest(
+                        email,
+                        "Pranay",
+                        "Ingole",
+                        "StrongPassword123"
+                );
+
+        ResponseEntity<AccountResponse> createResponse =
+                restTemplate.postForEntity(
+                        "/api/v1/accounts",
+                        createRequest,
+                        AccountResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.CREATED,
+                createResponse.getStatusCode()
+        );
+        assertNotNull(createResponse.getBody());
+
+        UUID accountId =
+                createResponse.getBody().accountId();
+
+        AccountController.UpdateAccountRequest updateRequest =
+                new AccountController.UpdateAccountRequest(
+                        "Alicia",
+                        "Johnson"
+                );
+
+        ResponseEntity<AccountResponse> updateResponse =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId,
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(updateRequest),
+                        AccountResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.OK,
+                updateResponse.getStatusCode()
+        );
+        assertNotNull(updateResponse.getBody());
+
+        assertEquals(
+                accountId,
+                updateResponse.getBody().accountId()
+        );
+        assertEquals(
+                "ACTIVE",
+                updateResponse.getBody().status()
+        );
+
+        ResponseEntity<AccountResponse> getResponse =
+                restTemplate.getForEntity(
+                        "/api/v1/accounts/" + accountId,
+                        AccountResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.OK,
+                getResponse.getStatusCode()
+        );
+        assertNotNull(getResponse.getBody());
+
+        assertEquals(
+                accountId,
+                getResponse.getBody().accountId()
+        );
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenUpdatingUnknownAccount() {
+        UUID accountId = UUID.randomUUID();
+
+        AccountController.UpdateAccountRequest request =
+                new AccountController.UpdateAccountRequest(
+                        "Alicia",
+                        "Johnson"
+                );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId,
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(request),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.NOT_FOUND,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains(
+                        "account not found: " + accountId
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectInvalidAccountIdWhenUpdating() {
+        AccountController.UpdateAccountRequest request =
+                new AccountController.UpdateAccountRequest(
+                        "Alicia",
+                        "Johnson"
+                );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/api/v1/accounts/not-a-uuid",
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(request),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.BAD_REQUEST,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+    }
+
+    @Test
+    void shouldRejectInvalidProfileUpdateRequest() {
+        AccountController.UpdateAccountRequest request =
+                new AccountController.UpdateAccountRequest(
+                        "",
+                        ""
+                );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + UUID.randomUUID(),
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(request),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.BAD_REQUEST,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+    }
+
 }

@@ -4,6 +4,8 @@ import com.payflow.account.application.CreateAccountUseCase;
 import com.payflow.account.application.GetAccountUseCase;
 import com.payflow.account.application.RegisterAccountCommand;
 import com.payflow.account.application.SuspendAccountUseCase;
+import com.payflow.account.application.UpdateAccountCommand;
+import com.payflow.account.application.UpdateAccountUseCase;
 import com.payflow.account.domain.Account;
 import com.payflow.account.domain.AccountId;
 import jakarta.validation.Valid;
@@ -22,15 +24,18 @@ public class AccountController {
     private final CreateAccountUseCase createAccountUseCase;
     private final GetAccountUseCase getAccountUseCase;
     private final SuspendAccountUseCase suspendAccountUseCase;
+    private final UpdateAccountUseCase updateAccountUseCase;
 
     public AccountController(
             CreateAccountUseCase createAccountUseCase,
             GetAccountUseCase getAccountUseCase,
-            SuspendAccountUseCase suspendAccountUseCase
+            SuspendAccountUseCase suspendAccountUseCase,
+            UpdateAccountUseCase updateAccountUseCase
     ) {
         this.createAccountUseCase = createAccountUseCase;
         this.getAccountUseCase = getAccountUseCase;
         this.suspendAccountUseCase = suspendAccountUseCase;
+        this.updateAccountUseCase = updateAccountUseCase;
     }
 
     @PostMapping
@@ -69,6 +74,33 @@ public class AccountController {
         suspendAccountUseCase.execute(
                 new AccountId(accountId)
         );
+    }
+
+    @PatchMapping("/{accountId}")
+    public AccountResponse updateAccount(
+            @PathVariable UUID accountId,
+            @Valid @RequestBody UpdateAccountRequest request
+    ) {
+        Account account = updateAccountUseCase.execute(
+                new UpdateAccountCommand(
+                        new AccountId(accountId),
+                        request.firstName(),
+                        request.lastName()
+                )
+        );
+
+        return AccountResponse.from(account);
+    }
+
+    public record UpdateAccountRequest(
+            @NotBlank
+            @Size(max = 100)
+            String firstName,
+
+            @NotBlank
+            @Size(max = 100)
+            String lastName
+    ) {
     }
 
     public record RegisterAccountRequest(

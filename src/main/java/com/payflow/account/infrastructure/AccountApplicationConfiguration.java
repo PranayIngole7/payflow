@@ -8,6 +8,7 @@ import com.payflow.account.application.SuspendAccountUseCase;
 import com.payflow.shared.application.TransactionRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import com.payflow.account.application.UpdateAccountUseCase;
 
 @Configuration
 public class AccountApplicationConfiguration {
@@ -42,4 +43,16 @@ public class AccountApplicationConfiguration {
                 transactionRunner
         );
     }
+    
+    @Bean
+    public UpdateAccountUseCase updateAccountUseCase(
+            AccountRepository accountRepository,
+            TransactionRunner transactionRunner
+    ) {
+        return new UpdateAccountUseCase(
+                accountRepository,
+                transactionRunner
+        );
+    }
+    
 }
