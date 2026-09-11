@@ -182,4 +182,21 @@ class AccountPostgresIntegrationTest {
                 )
         );
     }
+    
+    @Test
+    void shouldRejectInvalidAccountId() {
+        ResponseEntity<String> response =
+                restTemplate.getForEntity(
+                        "/api/v1/accounts/not-a-uuid",
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.BAD_REQUEST,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+    }
+    
 }
