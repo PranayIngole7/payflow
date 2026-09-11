@@ -1,8 +1,8 @@
 package com.payflow.wallet.api;
 
 import com.payflow.account.domain.AccountId;
-
 import com.payflow.wallet.application.CreateWalletUseCase;
+import com.payflow.wallet.application.DepositMoneyUseCase;
 import com.payflow.wallet.application.GetWalletUseCase;
 import com.payflow.wallet.domain.WalletId;
 import jakarta.validation.Valid;
@@ -18,10 +18,12 @@ public class WalletController {
 
     private final CreateWalletUseCase createWalletUseCase;
     private final GetWalletUseCase getWalletUseCase;
+    private final DepositMoneyUseCase depositMoneyUseCase;
 
     public WalletController(
             CreateWalletUseCase createWalletUseCase,
-            GetWalletUseCase getWalletUseCase
+            GetWalletUseCase getWalletUseCase,
+            DepositMoneyUseCase depositMoneyUseCase
     ) {
         this.createWalletUseCase = Objects.requireNonNull(
                 createWalletUseCase,
@@ -32,6 +34,11 @@ public class WalletController {
                 getWalletUseCase,
                 "get wallet use case must not be null"
         );
+
+        this.depositMoneyUseCase = Objects.requireNonNull(
+                depositMoneyUseCase,
+                "deposit money use case must not be null"
+        );
     }
 
     @PostMapping
@@ -39,12 +46,12 @@ public class WalletController {
     public WalletResponse createWallet(
             @Valid @RequestBody CreateWalletRequest request
     ) {
-    	return WalletResponse.from(
-    	        createWalletUseCase.execute(
-    	                new AccountId(request.accountId()),
-    	                request.currency()
-    	        )
-    	);
+        return WalletResponse.from(
+                createWalletUseCase.execute(
+                        new AccountId(request.accountId()),
+                        request.currency()
+                )
+        );
     }
 
     @GetMapping("/{walletId}")
@@ -54,6 +61,20 @@ public class WalletController {
         return WalletResponse.from(
                 getWalletUseCase.execute(
                         new WalletId(walletId)
+                )
+        );
+    }
+
+    @PostMapping("/{walletId}/deposits")
+    public WalletResponse deposit(
+            @PathVariable UUID walletId,
+            @Valid @RequestBody DepositMoneyRequest request
+    ) {
+        return WalletResponse.from(
+                depositMoneyUseCase.execute(
+                        new WalletId(walletId),
+                        request.amount(),
+                        request.currency()
                 )
         );
     }
