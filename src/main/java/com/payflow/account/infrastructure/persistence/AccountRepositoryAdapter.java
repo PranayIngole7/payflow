@@ -33,6 +33,12 @@ public class AccountRepositoryAdapter implements AccountRepository {
     }
 
     @Override
+    public Optional<String> findPasswordHash(AccountId accountId) {
+        return repository.findById(accountId.value())
+                .map(AccountEntity::getPasswordHash);
+    }
+
+    @Override
     public void save(Account account, String passwordHash) {
         Instant updatedAt = account.createdAt();
 
@@ -57,8 +63,28 @@ public class AccountRepositoryAdapter implements AccountRepository {
                         "account not found: " + account.id().value()
                 ));
 
-        entity.updateStatus(
+        entity.update(
+                account.firstName(),
+                account.lastName(),
                 account.status(),
+                Instant.now()
+        );
+
+        repository.save(entity);
+    }
+
+    @Override
+    public void updatePassword(
+            AccountId accountId,
+            String passwordHash
+    ) {
+        AccountEntity entity = repository.findById(accountId.value())
+                .orElseThrow(() -> new NoSuchElementException(
+                        "account not found: " + accountId.value()
+                ));
+
+        entity.updatePassword(
+                passwordHash,
                 Instant.now()
         );
 

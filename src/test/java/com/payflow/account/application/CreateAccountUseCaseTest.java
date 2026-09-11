@@ -32,6 +32,13 @@ class CreateAccountUseCaseTest {
             }
 
             @Override
+            public Optional<String> findPasswordHash(
+                    com.payflow.account.domain.AccountId accountId
+            ) {
+                return Optional.empty();
+            }
+
+            @Override
             public void save(
                     Account account,
                     String passwordHash
@@ -44,11 +51,30 @@ class CreateAccountUseCaseTest {
             public void update(Account account) {
                 // Not used by this test.
             }
+
+            @Override
+            public void updatePassword(
+                    com.payflow.account.domain.AccountId accountId,
+                    String passwordHash
+            ) {
+                // Not used by this test.
+            }
         };
 
-        PasswordHasher passwordHasher = rawPassword -> {
-            assertEquals("Password123", rawPassword);
-            return "hashed-password";
+        PasswordHasher passwordHasher = new PasswordHasher() {
+
+            @Override
+            public String hash(String rawPassword) {
+                return "hashed-password";
+            }
+
+            @Override
+            public boolean matches(
+                    String rawPassword,
+                    String passwordHash
+            ) {
+                return false;
+            }
         };
 
         TransactionRunner transactionRunner =
@@ -114,6 +140,13 @@ class CreateAccountUseCaseTest {
             }
 
             @Override
+            public Optional<String> findPasswordHash(
+                    com.payflow.account.domain.AccountId accountId
+            ) {
+                return Optional.empty();
+            }
+
+            @Override
             public void save(
                     Account account,
                     String passwordHash
@@ -125,11 +158,30 @@ class CreateAccountUseCaseTest {
             public void update(Account account) {
                 // Not used by this test.
             }
+
+            @Override
+            public void updatePassword(
+                    com.payflow.account.domain.AccountId accountId,
+                    String passwordHash
+            ) {
+                // Not used by this test.
+            }
         };
 
-        PasswordHasher passwordHasher = rawPassword -> {
-            fail("password should not be hashed for a duplicate email");
-            return "unreachable";
+        PasswordHasher passwordHasher = new PasswordHasher() {
+
+            @Override
+            public String hash(String rawPassword) {
+                return "hashed-password";
+            }
+
+            @Override
+            public boolean matches(
+                    String rawPassword,
+                    String passwordHash
+            ) {
+                return false;
+            }
         };
 
         TransactionRunner transactionRunner =

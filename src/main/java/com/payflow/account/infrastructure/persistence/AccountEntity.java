@@ -59,11 +59,23 @@ public class AccountEntity {
         this.updatedAt = updatedAt;
     }
 
-    public void updateStatus(
+    public void update(
+            String firstName,
+            String lastName,
             AccountStatus status,
             Instant updatedAt
     ) {
+        this.firstName = firstName;
+        this.lastName = lastName;
         this.status = status;
+        this.updatedAt = updatedAt;
+    }
+
+    public void updatePassword(
+            String passwordHash,
+            Instant updatedAt
+    ) {
+        this.passwordHash = passwordHash;
         this.updatedAt = updatedAt;
     }
 

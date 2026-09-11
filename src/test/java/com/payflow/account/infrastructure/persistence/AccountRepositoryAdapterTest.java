@@ -183,4 +183,151 @@ class AccountRepositoryAdapterTest {
         assertThat(restored.status())
                 .isEqualTo(original.status());
     }
+
+    @Test
+    void shouldFindPasswordHashForExistingAccount() {
+        AccountId accountId =
+                new AccountId(UUID.randomUUID());
+
+        Instant createdAt = Instant.parse(
+                "2026-09-02T13:00:00Z"
+        );
+
+        String passwordHash =
+                "$2a$10$existing-password-hash";
+
+        Account account = Account.create(
+                accountId,
+                "password@example.com",
+                "Password",
+                "Test",
+                createdAt
+        );
+
+        accountRepository.save(
+                account,
+                passwordHash
+        );
+
+        Optional<String> result =
+                accountRepository.findPasswordHash(accountId);
+
+        assertThat(result)
+                .isPresent()
+                .contains(passwordHash);
+    }
+
+    @Test
+    void shouldReturnEmptyPasswordHashWhenAccountDoesNotExist() {
+        AccountId accountId =
+                new AccountId(UUID.randomUUID());
+
+        Optional<String> result =
+                accountRepository.findPasswordHash(accountId);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldUpdatePasswordWithoutChangingOtherAccountFields() {
+        AccountId accountId =
+                new AccountId(UUID.randomUUID());
+
+        Instant createdAt = Instant.parse(
+                "2026-09-02T13:30:00Z"
+        );
+
+        String originalPasswordHash =
+                "original-password-hash";
+
+        String newPasswordHash =
+                "new-password-hash";
+
+        Account account = Account.create(
+                accountId,
+                "password-update@example.com",
+                "Alice",
+                "Smith",
+                createdAt
+        );
+
+        accountRepository.save(
+                account,
+                originalPasswordHash
+        );
+
+        AccountEntity beforeUpdate =
+                springDataRepository.findById(accountId.value())
+                        .orElseThrow();
+
+        Instant originalUpdatedAt =
+                beforeUpdate.getUpdatedAt();
+
+        accountRepository.updatePassword(
+                accountId,
+                newPasswordHash
+        );
+
+        springDataRepository.flush();
+
+        AccountEntity updated =
+                springDataRepository.findById(accountId.value())
+                        .orElseThrow();
+
+        assertThat(updated.getPasswordHash())
+                .isEqualTo(newPasswordHash);
+
+        assertThat(updated.getEmail())
+                .isEqualTo("password-update@example.com");
+
+        assertThat(updated.getFirstName())
+                .isEqualTo("Alice");
+
+        assertThat(updated.getLastName())
+                .isEqualTo("Smith");
+
+        assertThat(updated.getStatus())
+                .isEqualTo(AccountStatus.ACTIVE);
+
+        assertThat(updated.getCreatedAt())
+                .isEqualTo(createdAt);
+
+        assertThat(updated.getUpdatedAt())
+                .isAfterOrEqualTo(originalUpdatedAt);
+    }
+
+    @Test
+    void shouldPersistUpdatedPasswordWhenReadThroughRepository() {
+        AccountId accountId =
+                new AccountId(UUID.randomUUID());
+
+        Instant createdAt = Instant.parse(
+                "2026-09-02T14:00:00Z"
+        );
+
+        Account account = Account.create(
+                accountId,
+                "password-roundtrip@example.com",
+                "Alice",
+                "Smith",
+                createdAt
+        );
+
+        accountRepository.save(
+                account,
+                "old-password-hash"
+        );
+
+        accountRepository.updatePassword(
+                accountId,
+                "new-password-hash"
+        );
+
+        Optional<String> result =
+                accountRepository.findPasswordHash(accountId);
+
+        assertThat(result)
+                .isPresent()
+                .contains("new-password-hash");
+    }
 }

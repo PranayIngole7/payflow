@@ -46,12 +46,29 @@ class UpdateAccountUseCaseTest {
             }
 
             @Override
-            public void save(Account account, String passwordHash) {
+            public Optional<String> findPasswordHash(AccountId accountId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public void save(
+                    Account account,
+                    String passwordHash
+            ) {
+                // Not used by this test.
             }
 
             @Override
             public void update(Account account) {
                 persistedAccount.set(account);
+            }
+
+            @Override
+            public void updatePassword(
+                    AccountId accountId,
+                    String passwordHash
+            ) {
+                // Not used by this test.
             }
         };
 
@@ -98,12 +115,29 @@ class UpdateAccountUseCaseTest {
             }
 
             @Override
-            public void save(Account account, String passwordHash) {
+            public Optional<String> findPasswordHash(AccountId accountId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public void save(
+                    Account account,
+                    String passwordHash
+            ) {
+                // Not used by this test.
             }
 
             @Override
             public void update(Account account) {
                 fail("update must not be called");
+            }
+
+            @Override
+            public void updatePassword(
+                    AccountId accountId,
+                    String passwordHash
+            ) {
+                // Not used by this test.
             }
         };
 

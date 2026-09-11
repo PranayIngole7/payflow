@@ -24,4 +24,25 @@ public class BCryptPasswordHasher implements PasswordHasher {
 
         return encoder.encode(rawPassword);
     }
+
+    @Override
+    public boolean matches(
+            String rawPassword,
+            String passwordHash
+    ) {
+        Objects.requireNonNull(
+                rawPassword,
+                "raw password must not be null"
+        );
+
+        Objects.requireNonNull(
+                passwordHash,
+                "password hash must not be null"
+        );
+
+        return encoder.matches(
+                rawPassword,
+                passwordHash
+        );
+    }
 }

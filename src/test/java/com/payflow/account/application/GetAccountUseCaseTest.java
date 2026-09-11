@@ -37,6 +37,11 @@ class GetAccountUseCaseTest {
             }
 
             @Override
+            public Optional<String> findPasswordHash(AccountId accountId) {
+                return Optional.empty();
+            }
+
+            @Override
             public void save(
                     Account account,
                     String passwordHash
@@ -46,6 +51,14 @@ class GetAccountUseCaseTest {
 
             @Override
             public void update(Account account) {
+                // Not used by this test.
+            }
+
+            @Override
+            public void updatePassword(
+                    AccountId accountId,
+                    String passwordHash
+            ) {
                 // Not used by this test.
             }
         };
@@ -77,6 +90,11 @@ class GetAccountUseCaseTest {
             }
 
             @Override
+            public Optional<String> findPasswordHash(AccountId accountId) {
+                return Optional.empty();
+            }
+
+            @Override
             public void save(
                     Account account,
                     String passwordHash
@@ -86,6 +104,14 @@ class GetAccountUseCaseTest {
 
             @Override
             public void update(Account account) {
+                // Not used by this test.
+            }
+
+            @Override
+            public void updatePassword(
+                    AccountId accountId,
+                    String passwordHash
+            ) {
                 // Not used by this test.
             }
         };
@@ -120,6 +146,11 @@ class GetAccountUseCaseTest {
             }
 
             @Override
+            public Optional<String> findPasswordHash(AccountId accountId) {
+                return Optional.empty();
+            }
+
+            @Override
             public void save(
                     Account account,
                     String passwordHash
@@ -129,6 +160,14 @@ class GetAccountUseCaseTest {
 
             @Override
             public void update(Account account) {
+                // Not used by this test.
+            }
+
+            @Override
+            public void updatePassword(
+                    AccountId accountId,
+                    String passwordHash
+            ) {
                 // Not used by this test.
             }
         };

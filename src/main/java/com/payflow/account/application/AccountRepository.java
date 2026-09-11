@@ -11,7 +11,14 @@ public interface AccountRepository {
 
     Optional<Account> findByEmail(String email);
 
+    Optional<String> findPasswordHash(AccountId accountId);
+
     void save(Account account, String passwordHash);
 
     void update(Account account);
+
+    void updatePassword(
+            AccountId accountId,
+            String passwordHash
+    );
 }

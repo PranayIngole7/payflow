@@ -42,6 +42,11 @@ class SuspendAccountUseCaseTest {
             }
 
             @Override
+            public Optional<String> findPasswordHash(AccountId accountId) {
+                return Optional.empty();
+            }
+
+            @Override
             public void save(
                     Account account,
                     String passwordHash
@@ -52,6 +57,14 @@ class SuspendAccountUseCaseTest {
             @Override
             public void update(Account account) {
                 updatedAccount.set(account);
+            }
+
+            @Override
+            public void updatePassword(
+                    AccountId accountId,
+                    String passwordHash
+            ) {
+                // Not used by this test.
             }
         };
 
@@ -110,6 +123,11 @@ class SuspendAccountUseCaseTest {
             }
 
             @Override
+            public Optional<String> findPasswordHash(AccountId accountId) {
+                return Optional.empty();
+            }
+
+            @Override
             public void save(
                     Account account,
                     String passwordHash
@@ -120,6 +138,14 @@ class SuspendAccountUseCaseTest {
             @Override
             public void update(Account account) {
                 updateCalled.set(true);
+            }
+
+            @Override
+            public void updatePassword(
+                    AccountId accountId,
+                    String passwordHash
+            ) {
+                // Not used by this test.
             }
         };
 
@@ -176,6 +202,11 @@ class SuspendAccountUseCaseTest {
             }
 
             @Override
+            public Optional<String> findPasswordHash(AccountId accountId) {
+                return Optional.empty();
+            }
+
+            @Override
             public void save(
                     Account account,
                     String passwordHash
@@ -186,6 +217,14 @@ class SuspendAccountUseCaseTest {
             @Override
             public void update(Account account) {
                 updateCalled.set(true);
+            }
+
+            @Override
+            public void updatePassword(
+                    AccountId accountId,
+                    String passwordHash
+            ) {
+                // Not used by this test.
             }
         };
 
@@ -226,6 +265,11 @@ class SuspendAccountUseCaseTest {
             }
 
             @Override
+            public Optional<String> findPasswordHash(AccountId accountId) {
+                return Optional.empty();
+            }
+
+            @Override
             public void save(
                     Account account,
                     String passwordHash
@@ -235,6 +279,14 @@ class SuspendAccountUseCaseTest {
 
             @Override
             public void update(Account account) {
+                // Not used by this test.
+            }
+
+            @Override
+            public void updatePassword(
+                    AccountId accountId,
+                    String passwordHash
+            ) {
                 // Not used by this test.
             }
         };
@@ -254,5 +306,3 @@ class SuspendAccountUseCaseTest {
         );
     }
 }
-
-
