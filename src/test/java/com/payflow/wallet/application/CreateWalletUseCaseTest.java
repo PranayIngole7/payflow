@@ -5,87 +5,90 @@ import com.payflow.account.domain.Account;
 import com.payflow.account.domain.AccountId;
 import com.payflow.shared.application.TransactionRunner;
 import com.payflow.shared.domain.Currency;
-import com.payflow.shared.domain.Money;
 import com.payflow.wallet.domain.Wallet;
+import com.payflow.wallet.domain.WalletId;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class CreateWalletUseCaseTest {
 
     @Test
-    void shouldCreateWalletWithInitialBalance() {
+    void shouldCreateWalletWithZeroInitialBalance() {
+
         WalletRepository walletRepository =
                 mock(WalletRepository.class);
 
         AccountRepository accountRepository =
                 mock(AccountRepository.class);
 
-        TransactionRunner runner = Runnable::run;
-
-        CreateWalletUseCase useCase =
-                new CreateWalletUseCase(
-                        walletRepository,
-                        accountRepository,
-                        runner
-                );
+        TransactionRunner transactionRunner =
+                Runnable::run;
 
         AccountId accountId =
                 new AccountId(UUID.randomUUID());
 
         Account account = Account.create(
                 accountId,
-                "alice@example.com",
-                "Alice",
-                "Smith",
+                "test@example.com",
+                "Test",
+                "User",
                 Instant.now()
         );
 
         when(accountRepository.findById(accountId))
                 .thenReturn(Optional.of(account));
 
-        Money initialBalance =
-                new Money(
-                        new BigDecimal("250.00"),
-                        Currency.INR
-                );
+        when(walletRepository.findByAccountId(accountId))
+                .thenReturn(Optional.empty());
 
-        ArgumentCaptor<Wallet> captor =
-                ArgumentCaptor.forClass(Wallet.class);
+        AtomicReference<Wallet> savedWallet =
+                new AtomicReference<>();
 
-        doNothing()
-                .when(walletRepository)
-                .save(captor.capture());
+        doAnswer(invocation -> {
+            savedWallet.set(invocation.getArgument(0));
+            return null;
+        }).when(walletRepository).save(any(Wallet.class));
 
         when(walletRepository.findById(any()))
                 .thenAnswer(invocation ->
-                        Optional.of(captor.getValue())
+                        Optional.ofNullable(savedWallet.get())
                 );
 
-        Wallet wallet = useCase.execute(
-                accountId,
-                initialBalance
-        );
+        CreateWalletUseCase useCase =
+                new CreateWalletUseCase(
+                        walletRepository,
+                        accountRepository,
+                        transactionRunner
+                );
 
-        assertThat(wallet.accountId())
+        Wallet result =
+                useCase.execute(
+                        accountId,
+                        Currency.INR
+                );
+
+        assertThat(result).isNotNull();
+        assertThat(result.accountId())
                 .isEqualTo(accountId);
-
-        assertThat(wallet.currency())
+        assertThat(result.currency())
                 .isEqualTo(Currency.INR);
-
-        assertThat(wallet.balance().amount())
-                .isEqualByComparingTo("250.00");
+        assertThat(result.balance().amount())
+                .isEqualByComparingTo("0.00");
 
         verify(accountRepository)
                 .findById(accountId);
+
+        verify(walletRepository)
+                .findByAccountId(accountId);
 
         verify(walletRepository)
                 .save(any(Wallet.class));
@@ -93,20 +96,15 @@ class CreateWalletUseCaseTest {
 
     @Test
     void shouldRejectWalletCreationWhenAccountDoesNotExist() {
+
         WalletRepository walletRepository =
                 mock(WalletRepository.class);
 
         AccountRepository accountRepository =
                 mock(AccountRepository.class);
 
-        TransactionRunner runner = Runnable::run;
-
-        CreateWalletUseCase useCase =
-                new CreateWalletUseCase(
-                        walletRepository,
-                        accountRepository,
-                        runner
-                );
+        TransactionRunner transactionRunner =
+                Runnable::run;
 
         AccountId accountId =
                 new AccountId(UUID.randomUUID());
@@ -114,90 +112,169 @@ class CreateWalletUseCaseTest {
         when(accountRepository.findById(accountId))
                 .thenReturn(Optional.empty());
 
-        var exception = assertThrows(
-                java.util.NoSuchElementException.class,
-                () -> useCase.execute(
-                        accountId,
-                        new Money(
-                                new BigDecimal("100.00"),
-                                Currency.INR
-                        )
-                )
-        );
+        CreateWalletUseCase useCase =
+                new CreateWalletUseCase(
+                        walletRepository,
+                        accountRepository,
+                        transactionRunner
+                );
 
-        assertThat(exception.getMessage())
-                .isEqualTo(
+        assertThatThrownBy(() ->
+                useCase.execute(
+                        accountId,
+                        Currency.INR
+                )
+        )
+                .isInstanceOf(
+                        java.util.NoSuchElementException.class
+                )
+                .hasMessage(
                         "account not found: " + accountId.value()
                 );
 
         verify(accountRepository)
                 .findById(accountId);
 
-        verifyNoInteractions(walletRepository);
+        verify(walletRepository, never())
+                .findByAccountId(any());
+
+        verify(walletRepository, never())
+                .save(any());
+    }
+
+    @Test
+    void shouldRejectWalletCreationWhenWalletAlreadyExists() {
+
+        WalletRepository walletRepository =
+                mock(WalletRepository.class);
+
+        AccountRepository accountRepository =
+                mock(AccountRepository.class);
+
+        TransactionRunner transactionRunner =
+                Runnable::run;
+
+        AccountId accountId =
+                new AccountId(UUID.randomUUID());
+
+        Account account = Account.create(
+                accountId,
+                "test@example.com",
+                "Test",
+                "User",
+                Instant.now()
+        );
+
+        Wallet existingWallet =
+                Wallet.create(
+                        WalletId.generate(),
+                        accountId,
+                        Currency.INR
+                );
+
+        when(accountRepository.findById(accountId))
+                .thenReturn(Optional.of(account));
+
+        when(walletRepository.findByAccountId(accountId))
+                .thenReturn(Optional.of(existingWallet));
+
+        CreateWalletUseCase useCase =
+                new CreateWalletUseCase(
+                        walletRepository,
+                        accountRepository,
+                        transactionRunner
+                );
+
+        assertThatThrownBy(() ->
+                useCase.execute(
+                        accountId,
+                        Currency.INR
+                )
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage(
+                        "wallet already exists for account: "
+                                + accountId.value()
+                );
+
+        verify(accountRepository)
+                .findById(accountId);
+
+        verify(walletRepository)
+                .findByAccountId(accountId);
+
+        verify(walletRepository, never())
+                .save(any());
     }
 
     @Test
     void shouldRejectNullAccountId() {
+
         WalletRepository walletRepository =
                 mock(WalletRepository.class);
 
         AccountRepository accountRepository =
                 mock(AccountRepository.class);
 
-        TransactionRunner runner = Runnable::run;
+        TransactionRunner transactionRunner =
+                Runnable::run;
 
         CreateWalletUseCase useCase =
                 new CreateWalletUseCase(
                         walletRepository,
                         accountRepository,
-                        runner
+                        transactionRunner
                 );
 
-        assertThrows(
-                NullPointerException.class,
-                () -> useCase.execute(
+        assertThatThrownBy(() ->
+                useCase.execute(
                         null,
-                        new Money(
-                                new BigDecimal("100.00"),
-                                Currency.INR
-                        )
+                        Currency.INR
                 )
-        );
+        )
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage(
+                        "account id must not be null"
+                );
 
-        verifyNoInteractions(
-                walletRepository,
-                accountRepository
-        );
+        verifyNoInteractions(accountRepository);
+        verifyNoInteractions(walletRepository);
     }
 
     @Test
-    void shouldRejectNullInitialBalance() {
+    void shouldRejectNullCurrency() {
+
         WalletRepository walletRepository =
                 mock(WalletRepository.class);
 
         AccountRepository accountRepository =
                 mock(AccountRepository.class);
 
-        TransactionRunner runner = Runnable::run;
+        TransactionRunner transactionRunner =
+                Runnable::run;
+
+        AccountId accountId =
+                new AccountId(UUID.randomUUID());
 
         CreateWalletUseCase useCase =
                 new CreateWalletUseCase(
                         walletRepository,
                         accountRepository,
-                        runner
+                        transactionRunner
                 );
 
-        assertThrows(
-                NullPointerException.class,
-                () -> useCase.execute(
-                        new AccountId(UUID.randomUUID()),
+        assertThatThrownBy(() ->
+                useCase.execute(
+                        accountId,
                         null
                 )
-        );
+        )
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage(
+                        "currency must not be null"
+                );
 
-        verifyNoInteractions(
-                walletRepository,
-                accountRepository
-        );
+        verifyNoInteractions(accountRepository);
+        verifyNoInteractions(walletRepository);
     }
 }

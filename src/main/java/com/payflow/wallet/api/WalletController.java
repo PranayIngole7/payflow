@@ -1,7 +1,7 @@
 package com.payflow.wallet.api;
 
 import com.payflow.account.domain.AccountId;
-import com.payflow.shared.domain.Money;
+
 import com.payflow.wallet.application.CreateWalletUseCase;
 import com.payflow.wallet.application.GetWalletUseCase;
 import com.payflow.wallet.domain.WalletId;
@@ -39,15 +39,12 @@ public class WalletController {
     public WalletResponse createWallet(
             @Valid @RequestBody CreateWalletRequest request
     ) {
-        return WalletResponse.from(
-                createWalletUseCase.execute(
-                        new AccountId(request.accountId()),
-                        new Money(
-                                request.initialBalance(),
-                                request.currency()
-                        )
-                )
-        );
+    	return WalletResponse.from(
+    	        createWalletUseCase.execute(
+    	                new AccountId(request.accountId()),
+    	                request.currency()
+    	        )
+    	);
     }
 
     @GetMapping("/{walletId}")

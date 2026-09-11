@@ -3,7 +3,7 @@ package com.payflow.wallet.application;
 import com.payflow.account.application.AccountRepository;
 import com.payflow.account.domain.AccountId;
 import com.payflow.shared.application.TransactionRunner;
-import com.payflow.shared.domain.Money;
+import com.payflow.shared.domain.Currency;
 import com.payflow.wallet.domain.Wallet;
 import com.payflow.wallet.domain.WalletId;
 
@@ -39,7 +39,7 @@ public final class CreateWalletUseCase {
 
     public Wallet execute(
             AccountId accountId,
-            Money initialBalance
+            Currency currency
     ) {
         Objects.requireNonNull(
                 accountId,
@@ -47,27 +47,31 @@ public final class CreateWalletUseCase {
         );
 
         Objects.requireNonNull(
-                initialBalance,
-                "initial balance must not be null"
+                currency,
+                "currency must not be null"
         );
 
         WalletId walletId = WalletId.generate();
 
         transactionRunner.execute(() -> {
+
             accountRepository.findById(accountId)
                     .orElseThrow(() -> new NoSuchElementException(
                             "account not found: " + accountId.value()
                     ));
 
+            walletRepository.findByAccountId(accountId)
+                    .ifPresent(existingWallet -> {
+                        throw new IllegalStateException(
+                                "wallet already exists for account: " + accountId.value()
+                        );
+                    });
+
             Wallet wallet = Wallet.create(
                     walletId,
                     accountId,
-                    initialBalance.currency()
+                    currency
             );
-
-            if (initialBalance.amount().signum() > 0) {
-                wallet.credit(initialBalance);
-            }
 
             walletRepository.save(wallet);
         });

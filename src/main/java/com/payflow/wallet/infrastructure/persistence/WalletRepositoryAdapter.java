@@ -1,6 +1,7 @@
 package com.payflow.wallet.infrastructure.persistence;
 
 import com.payflow.shared.domain.Money;
+import com.payflow.account.domain.AccountId;
 import com.payflow.wallet.application.WalletRepository;
 import com.payflow.wallet.domain.Wallet;
 import com.payflow.wallet.domain.WalletId;
@@ -29,7 +30,13 @@ public class WalletRepositoryAdapter implements WalletRepository {
     public void save(Wallet wallet) {
         repository.save(toEntity(wallet));
     }
-
+    
+    @Override
+    public Optional<Wallet> findByAccountId(AccountId accountId) {
+        return repository.findByAccountId(accountId.value())
+                .map(this::toDomain);
+    }
+    
     private Wallet toDomain(WalletEntity entity) {
         return Wallet.reconstitute(
                 new WalletId(entity.getId()),
