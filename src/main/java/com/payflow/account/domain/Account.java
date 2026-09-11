@@ -14,8 +14,8 @@ public final class Account {
 
     private final AccountId id;
     private final String email;
-    private final String firstName;
-    private final String lastName;
+    private String firstName;
+    private String lastName;
     private final Instant createdAt;
     private AccountStatus status;
 
@@ -125,6 +125,21 @@ public final class Account {
         }
 
         status = AccountStatus.SUSPENDED;
+    }
+
+    public void updateProfile(
+            String firstName,
+            String lastName
+    ) {
+        this.firstName = requireNotBlank(
+                firstName,
+                "first name must not be blank"
+        );
+
+        this.lastName = requireNotBlank(
+                lastName,
+                "last name must not be blank"
+        );
     }
 
     private static String requireNotBlank(

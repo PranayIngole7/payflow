@@ -173,4 +173,85 @@ class AccountTest {
                 account::suspend
         );
     }
+    
+    @Test
+    void shouldUpdateProfile() {
+        Account account = Account.create(
+                AccountId.generate(),
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                Instant.now()
+        );
+
+        account.updateProfile("Alicia", "Johnson");
+
+        assertEquals("Alicia", account.firstName());
+        assertEquals("Johnson", account.lastName());
+    }
+
+    @Test
+    void shouldRejectBlankFirstNameWhenUpdatingProfile() {
+        Account account = Account.create(
+                AccountId.generate(),
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                Instant.now()
+        );
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> account.updateProfile("   ", "Johnson")
+        );
+    }
+
+    @Test
+    void shouldRejectBlankLastNameWhenUpdatingProfile() {
+        Account account = Account.create(
+                AccountId.generate(),
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                Instant.now()
+        );
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> account.updateProfile("Alicia", "   ")
+        );
+    }
+
+    @Test
+    void shouldRejectNullFirstNameWhenUpdatingProfile() {
+        Account account = Account.create(
+                AccountId.generate(),
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                Instant.now()
+        );
+
+        assertThrows(
+                NullPointerException.class,
+                () -> account.updateProfile(null, "Johnson")
+        );
+    }
+
+    @Test
+    void shouldRejectNullLastNameWhenUpdatingProfile() {
+        Account account = Account.create(
+                AccountId.generate(),
+                "alice@example.com",
+                "Alice",
+                "Smith",
+                Instant.now()
+        );
+
+        assertThrows(
+                NullPointerException.class,
+                () -> account.updateProfile("Alicia", null)
+        );
+    }
+    
 }
