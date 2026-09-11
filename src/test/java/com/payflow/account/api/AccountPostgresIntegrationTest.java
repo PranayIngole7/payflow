@@ -136,4 +136,50 @@ class AccountPostgresIntegrationTest {
                 response.getStatusCode()
         );
     }
+    
+    @Test
+    void shouldRejectDuplicateEmail() {
+        String email =
+                "duplicate-" + UUID.randomUUID() + "@example.com";
+
+        AccountController.RegisterAccountRequest request =
+                new AccountController.RegisterAccountRequest(
+                        email,
+                        "Pranay",
+                        "Ingole",
+                        "StrongPassword123"
+                );
+
+        ResponseEntity<AccountResponse> firstResponse =
+                restTemplate.postForEntity(
+                        "/api/v1/accounts",
+                        request,
+                        AccountResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.CREATED,
+                firstResponse.getStatusCode()
+        );
+
+        ResponseEntity<String> secondResponse =
+                restTemplate.postForEntity(
+                        "/api/v1/accounts",
+                        request,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.CONFLICT,
+                secondResponse.getStatusCode()
+        );
+
+        assertNotNull(secondResponse.getBody());
+
+        assertTrue(
+                secondResponse.getBody().contains(
+                        "account already exists for email: " + email
+                )
+        );
+    }
 }
