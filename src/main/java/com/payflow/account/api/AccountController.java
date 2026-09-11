@@ -1,5 +1,7 @@
 package com.payflow.account.api;
 
+import com.payflow.account.application.ChangePasswordCommand;
+import com.payflow.account.application.ChangePasswordUseCase;
 import com.payflow.account.application.CreateAccountUseCase;
 import com.payflow.account.application.GetAccountUseCase;
 import com.payflow.account.application.RegisterAccountCommand;
@@ -25,17 +27,20 @@ public class AccountController {
     private final GetAccountUseCase getAccountUseCase;
     private final SuspendAccountUseCase suspendAccountUseCase;
     private final UpdateAccountUseCase updateAccountUseCase;
+    private final ChangePasswordUseCase changePasswordUseCase;
 
     public AccountController(
             CreateAccountUseCase createAccountUseCase,
             GetAccountUseCase getAccountUseCase,
             SuspendAccountUseCase suspendAccountUseCase,
-            UpdateAccountUseCase updateAccountUseCase
+            UpdateAccountUseCase updateAccountUseCase,
+            ChangePasswordUseCase changePasswordUseCase
     ) {
         this.createAccountUseCase = createAccountUseCase;
         this.getAccountUseCase = getAccountUseCase;
         this.suspendAccountUseCase = suspendAccountUseCase;
         this.updateAccountUseCase = updateAccountUseCase;
+        this.changePasswordUseCase = changePasswordUseCase;
     }
 
     @PostMapping
@@ -51,7 +56,6 @@ public class AccountController {
         );
 
         Account account = createAccountUseCase.execute(command);
-
         return AccountResponse.from(account);
     }
 
@@ -92,6 +96,21 @@ public class AccountController {
         return AccountResponse.from(account);
     }
 
+    @PatchMapping("/{accountId}/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(
+            @PathVariable UUID accountId,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        changePasswordUseCase.execute(
+                new ChangePasswordCommand(
+                        new AccountId(accountId),
+                        request.currentPassword(),
+                        request.newPassword()
+                )
+        );
+    }
+
     public record UpdateAccountRequest(
             @NotBlank
             @Size(max = 100)
@@ -100,8 +119,17 @@ public class AccountController {
             @NotBlank
             @Size(max = 100)
             String lastName
-    ) {
-    }
+    ) {}
+
+    public record ChangePasswordRequest(
+            @NotBlank
+            @Size(max = 255)
+            String currentPassword,
+
+            @NotBlank
+            @Size(min = 8, max = 255)
+            String newPassword
+    ) {}
 
     public record RegisterAccountRequest(
             @NotBlank
@@ -120,6 +148,5 @@ public class AccountController {
             @NotBlank
             @Size(min = 8, max = 255)
             String password
-    ) {
-    }
+    ) {}
 }

@@ -524,4 +524,215 @@ class AccountPostgresIntegrationTest {
         assertNotNull(response.getBody());
     }
 
+    @Test
+    void shouldChangePassword() {
+        String email =
+                "change-password-" + UUID.randomUUID() + "@example.com";
+
+        String currentPassword = "StrongPassword123";
+        String newPassword = "NewStrongPassword456";
+
+        AccountController.RegisterAccountRequest createRequest =
+                new AccountController.RegisterAccountRequest(
+                        email,
+                        "Pranay",
+                        "Ingole",
+                        currentPassword
+                );
+
+        ResponseEntity<AccountResponse> createResponse =
+                restTemplate.postForEntity(
+                        "/api/v1/accounts",
+                        createRequest,
+                        AccountResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.CREATED,
+                createResponse.getStatusCode()
+        );
+        assertNotNull(createResponse.getBody());
+
+        UUID accountId =
+                createResponse.getBody().accountId();
+
+        AccountController.ChangePasswordRequest changeRequest =
+                new AccountController.ChangePasswordRequest(
+                        currentPassword,
+                        newPassword
+                );
+
+        ResponseEntity<Void> changeResponse =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId + "/password",
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(changeRequest),
+                        Void.class
+                );
+
+        assertEquals(
+                HttpStatus.NO_CONTENT,
+                changeResponse.getStatusCode()
+        );
+
+        AccountController.ChangePasswordRequest secondChangeRequest =
+                new AccountController.ChangePasswordRequest(
+                        newPassword,
+                        "AnotherStrongPassword789"
+                );
+
+        ResponseEntity<Void> secondChangeResponse =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId + "/password",
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(secondChangeRequest),
+                        Void.class
+                );
+
+        assertEquals(
+                HttpStatus.NO_CONTENT,
+                secondChangeResponse.getStatusCode()
+        );
+    }
+
+    @Test
+    void shouldRejectIncorrectCurrentPassword() {
+        String email =
+                "wrong-password-" + UUID.randomUUID() + "@example.com";
+
+        String currentPassword = "StrongPassword123";
+        String newPassword = "NewStrongPassword456";
+
+        AccountController.RegisterAccountRequest createRequest =
+                new AccountController.RegisterAccountRequest(
+                        email,
+                        "Pranay",
+                        "Ingole",
+                        currentPassword
+                );
+
+        ResponseEntity<AccountResponse> createResponse =
+                restTemplate.postForEntity(
+                        "/api/v1/accounts",
+                        createRequest,
+                        AccountResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.CREATED,
+                createResponse.getStatusCode()
+        );
+        assertNotNull(createResponse.getBody());
+
+        UUID accountId =
+                createResponse.getBody().accountId();
+
+        AccountController.ChangePasswordRequest changeRequest =
+                new AccountController.ChangePasswordRequest(
+                        "WrongPassword123",
+                        newPassword
+                );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId + "/password",
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(changeRequest),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.CONFLICT,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains(
+                        "current password is incorrect"
+                )
+        );
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenChangingPasswordForUnknownAccount() {
+        UUID accountId = UUID.randomUUID();
+
+        AccountController.ChangePasswordRequest request =
+                new AccountController.ChangePasswordRequest(
+                        "CurrentPassword123",
+                        "NewPassword123"
+                );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + accountId + "/password",
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(request),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.NOT_FOUND,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains(
+                        "account not found: " + accountId
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectInvalidAccountIdWhenChangingPassword() {
+        AccountController.ChangePasswordRequest request =
+                new AccountController.ChangePasswordRequest(
+                        "CurrentPassword123",
+                        "NewPassword123"
+                );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/api/v1/accounts/not-a-uuid/password",
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(request),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.BAD_REQUEST,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+    }
+
+    @Test
+    void shouldRejectInvalidPasswordChangeRequest() {
+        AccountController.ChangePasswordRequest request =
+                new AccountController.ChangePasswordRequest(
+                        "",
+                        "short"
+                );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/api/v1/accounts/" + UUID.randomUUID() + "/password",
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(request),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.BAD_REQUEST,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+    }
+
 }
