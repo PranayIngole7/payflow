@@ -1,9 +1,9 @@
 # PayFlow — Project Progress Report
 
-**Date:** 9 September 2026  
-**Current Phase:** Phase 6 — Spring Boot Foundation
+**Date:** 11 September 2026  
+**Current Phase:** Phase 7 — User Service  
 **Status:** COMPLETE  
-**Next Phase:** Phase 7 — User Service
+**Next Phase:** Phase 8 — Wallet Service
 
 ---
 
@@ -15,8 +15,8 @@
 | Phase 4 | System Architecture | COMPLETE |
 | Phase 5 | Database Design | COMPLETE |
 | Phase 6 | Spring Boot Foundation | COMPLETE |
-| Phase 7 | User Service | NEXT |
-| Phase 8 | Wallet Service | PLANNED |
+| Phase 7 | User Service | COMPLETE |
+| Phase 8 | Wallet Service | NEXT |
 | Phase 9 | Payment Service | PLANNED |
 | Phase 10 | Ledger | PLANNED |
 | Phase 11 | Security | PLANNED |
@@ -46,7 +46,7 @@
 
 PayFlow is a production-oriented financial/payment platform being developed with Java and Spring Boot.
 
-The project is intentionally being built as a **modular monolith first**, with strong domain boundaries and clean architectural separation. The design should allow individual modules to be extracted into services later if scale, ownership, or operational requirements justify it.
+The project is intentionally being built as a **modular monolith first**, with strong domain boundaries and clean architectural separation.
 
 The core financial model is based on:
 
@@ -66,7 +66,8 @@ The core financial model is based on:
 
 # 2. Project Phase Status
 
-- Phase 1 through Phase 5 are complete.
+- Phase 1 through Phase 7 are complete.
+- Phase 8 — Wallet Service is next.
 
 ---
 
@@ -86,8 +87,6 @@ The application now has clear boundaries between:
 - Persistence infrastructure
 - Shared infrastructure
 
-The architecture is designed to prevent financial business rules from leaking into controllers or persistence code.
-
 ---
 
 # 4. Architectural Style
@@ -98,45 +97,6 @@ PayFlow uses a:
 
 The current system remains a single deployable application while maintaining explicit domain boundaries.
 
-The intended high-level structure is:
-
-```text
-com.payflow
-│
-├── account
-│   ├── api
-│   ├── application
-│   ├── domain
-│   └── infrastructure
-│
-├── wallet
-│   ├── api
-│   ├── application
-│   ├── domain
-│   └── infrastructure
-│
-├── transaction
-│   ├── api
-│   ├── application
-│   ├── domain
-│   └── infrastructure
-│
-├── ledger
-│   ├── application
-│   ├── domain
-│   └── infrastructure
-│
-├── notification
-│   ├── api
-│   ├── application
-│   ├── domain
-│   └── infrastructure
-│
-└── shared
-    ├── application
-    ├── domain
-    └── infrastructure
-```
 ---
 
 # 5. Phase 5 — Database Design
@@ -155,37 +115,71 @@ Phase 5 established and manually verified the initial PostgreSQL database design
 - UNIQUE and CHECK constraints
 - Query-driven indexes
 - Financial invariants
-- Database/application responsibility boundaries
 - Docker PostgreSQL persistence
 
 Detailed database documentation is available in:
 
 `docs/database-design.md`
 
-The schema was manually created and verified in PostgreSQL during Phase 5. Version-controlled database migrations are intentionally deferred to Phase 6 — Spring Boot Foundation.
-
 ---
 
-# Phase 6 — Spring Boot Foundation
+# 6. Phase 6 — Spring Boot Foundation
 
 ## Status
 
 **COMPLETE**
 
-Phase 6 established the Spring Boot foundation, including:
+Phase 6 established:
 
-- Spring Boot configuration and profiles 
-- **JPA**/Hibernate entity mapping 
-- Spring Data repositories and persistence adapters 
-- Application/service layer foundation 
-- Transaction management 
-- Exception handling and validation foundation 
-- Basic **REST** foundation 
-- Flyway database migration 
-- H2 unit-test configuration 
-- Dedicated PostgreSQL integration-test configuration 
+- Spring Boot configuration and profiles
+- JPA/Hibernate entity mapping
+- Spring Data repositories and persistence adapters
+- Application/service layer foundation
+- Transaction management
+- Exception handling and validation
+- REST foundation
+- Flyway migration
+- H2 testing
 - PostgreSQL integration testing
 
 ---
 
+# 7. Phase 7 — User Service
 
+## Status
+
+**COMPLETE**
+
+Phase 7 implemented and tested:
+
+- Account registration
+- Duplicate-email protection
+- Password hashing with BCrypt
+- Account retrieval
+- Account suspension
+- Profile update
+- Change password
+- REST validation and error handling
+- Unit testing
+- PostgreSQL integration testing
+
+Final regression result:
+
+```text
+Tests run: 205
+Failures: 0
+Errors: 0
+Skipped: 0
+
+BUILD SUCCESS
+```
+
+Phase 7 is complete.
+
+---
+
+# 8. Next Phase
+
+**Phase 8 — Wallet Service**
+
+The next phase will focus on wallet creation, wallet persistence, balance handling, and the wallet domain foundation.
