@@ -16,26 +16,19 @@ public final class Wallet {
     private final AccountId accountId;
     private final Currency currency;
     private Money balance;
+    private final long version;
 
     private Wallet(
             WalletId id,
             AccountId accountId,
             Currency currency,
-            Money balance
+            Money balance,
+            long version
     ) {
         this.id = Objects.requireNonNull(id, "wallet id must not be null");
-        this.accountId = Objects.requireNonNull(
-                accountId,
-                "account id must not be null"
-        );
-        this.currency = Objects.requireNonNull(
-                currency,
-                "currency must not be null"
-        );
-        this.balance = Objects.requireNonNull(
-                balance,
-                "balance must not be null"
-        );
+        this.accountId = Objects.requireNonNull(accountId, "account id must not be null");
+        this.currency = Objects.requireNonNull(currency, "currency must not be null");
+        this.balance = Objects.requireNonNull(balance, "balance must not be null");
 
         if (!currency.equals(balance.currency())) {
             throw new IllegalArgumentException(
@@ -48,6 +41,14 @@ public final class Wallet {
                     "wallet balance must not be negative"
             );
         }
+
+        if (version < 0) {
+            throw new IllegalArgumentException(
+                    "wallet version must not be negative"
+            );
+        }
+
+        this.version = version;
     }
 
     public static Wallet create(
@@ -59,27 +60,31 @@ public final class Wallet {
                 id,
                 accountId,
                 currency,
-                new Money(BigDecimal.ZERO, currency)
+                new Money(BigDecimal.ZERO, currency),
+                0L
         );
     }
 
     /**
      * Reconstructs an existing wallet from persistent state.
      *
-     * <p>Intentionally package-private so persistence/application code
-     * cannot freely bypass the aggregate API.</p>
+     * <p>The version is persistence state used for optimistic
+     * concurrency control. It is not modified by domain operations;
+     * the persistence layer/database owns version advancement.</p>
      */
-  public static Wallet reconstitute(
+    public static Wallet reconstitute(
             WalletId id,
             AccountId accountId,
             Currency currency,
-            Money balance
+            Money balance,
+            long version
     ) {
         return new Wallet(
                 id,
                 accountId,
                 currency,
-                balance
+                balance,
+                version
         );
     }
 
@@ -102,12 +107,14 @@ public final class Wallet {
         }
 
         if (amount.amount().compareTo(balance.amount()) > 0) {
-            throw new IllegalArgumentException("Insufficient wallet balance");
+            throw new IllegalArgumentException(
+                    "Insufficient wallet balance"
+            );
         }
 
         balance = balance.subtract(amount);
     }
-    
+
     public WalletId id() {
         return id;
     }
@@ -124,10 +131,11 @@ public final class Wallet {
         return balance;
     }
 
-    private void requireValidAmount(
-            Money amount,
-            String operation
-    ) {
+    public long version() {
+        return version;
+    }
+
+    private void requireValidAmount(Money amount, String operation) {
         Objects.requireNonNull(
                 amount,
                 operation + " amount must not be null"

@@ -7,6 +7,7 @@ import com.payflow.wallet.domain.Wallet;
 import com.payflow.wallet.domain.WalletId;
 import org.springframework.stereotype.Repository;
 
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 @Repository
@@ -14,9 +15,7 @@ public class WalletRepositoryAdapter implements WalletRepository {
 
     private final SpringDataWalletRepository repository;
 
-    public WalletRepositoryAdapter(
-            SpringDataWalletRepository repository
-    ) {
+    public WalletRepositoryAdapter(SpringDataWalletRepository repository) {
         this.repository = repository;
     }
 
@@ -28,35 +27,29 @@ public class WalletRepositoryAdapter implements WalletRepository {
 
     @Override
     public void save(Wallet wallet) {
-        repository.save(toEntity(wallet));
+        WalletEntity entity = repository.findById(wallet.id().value())
+                .orElseThrow(() -> new NoSuchElementException(
+                        "wallet not found: " + wallet.id().value()
+                ));
+
+        entity.updateBalance(wallet.balance().amount());
+
+        repository.save(entity);
     }
-    
+
     @Override
     public Optional<Wallet> findByAccountId(AccountId accountId) {
         return repository.findByAccountId(accountId.value())
                 .map(this::toDomain);
     }
-    
+
     private Wallet toDomain(WalletEntity entity) {
         return Wallet.reconstitute(
                 new WalletId(entity.getId()),
-                new com.payflow.account.domain.AccountId(
-                        entity.getAccountId()
-                ),
+                new AccountId(entity.getAccountId()),
                 entity.getCurrency(),
-                new Money(
-                        entity.getBalance(),
-                        entity.getCurrency()
-                )
-        );
-    }
-
-    private WalletEntity toEntity(Wallet wallet) {
-        return new WalletEntity(
-                wallet.id().value(),
-                wallet.accountId().value(),
-                wallet.currency(),
-                wallet.balance().amount()
+                new Money(entity.getBalance(), entity.getCurrency()),
+                entity.getVersion()
         );
     }
 }

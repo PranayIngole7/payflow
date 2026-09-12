@@ -7,6 +7,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -36,6 +37,7 @@ public class WalletEntity {
     @Column(nullable = false, length = 30)
     private String status;
 
+    @Version
     @Column(nullable = false)
     private Long version;
 
@@ -48,6 +50,13 @@ public class WalletEntity {
     protected WalletEntity() {
     }
 
+    /**
+     * Creates a new wallet entity.
+     *
+     * <p>Version intentionally starts as null so Spring Data JPA
+     * recognizes this entity as new. Hibernate initializes the
+     * optimistic-lock version during INSERT.</p>
+     */
     public WalletEntity(
             UUID id,
             UUID accountId,
@@ -59,9 +68,40 @@ public class WalletEntity {
         this.currency = currency;
         this.balance = balance;
         this.status = "ACTIVE";
-        this.version = 0L;
+        this.version = null;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
+    }
+
+    /**
+     * Creates an entity representing an existing persisted wallet.
+     *
+     * <p>The supplied version is the version originally read by the
+     * domain aggregate. Hibernate uses it for optimistic locking.</p>
+     */
+    public WalletEntity(
+            UUID id,
+            UUID accountId,
+            Currency currency,
+            BigDecimal balance,
+            long version,
+            String status,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this.id = id;
+        this.accountId = accountId;
+        this.currency = currency;
+        this.balance = balance;
+        this.status = status;
+        this.version = version;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+    
+    public void updateBalance(BigDecimal balance) {
+        this.balance = balance;
+        this.updatedAt = Instant.now();
     }
 
     public UUID getId() {
