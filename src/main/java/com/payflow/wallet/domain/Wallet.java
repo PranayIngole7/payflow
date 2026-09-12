@@ -89,19 +89,25 @@ public final class Wallet {
     }
 
     public void debit(Money amount) {
-        requireValidAmount(amount, "debit");
-
-        Money newBalance = balance.subtract(amount);
-
-        if (newBalance.isNegative()) {
-            throw new IllegalArgumentException(
-                    "insufficient funds for wallet " + id
-            );
+        if (amount == null) {
+            throw new IllegalArgumentException("Amount must not be null");
         }
 
-        balance = newBalance;
-    }
+        if (!amount.isPositive()) {
+            throw new IllegalArgumentException("Amount must be positive");
+        }
 
+        if (!currency.equals(amount.currency())) {
+            throw new IllegalArgumentException("Currency mismatch");
+        }
+
+        if (amount.amount().compareTo(balance.amount()) > 0) {
+            throw new IllegalArgumentException("Insufficient wallet balance");
+        }
+
+        balance = balance.subtract(amount);
+    }
+    
     public WalletId id() {
         return id;
     }

@@ -62,7 +62,55 @@ class WalletTest {
                 )
         );
     }
+    
+    @Test
+    void shouldLeaveBalanceUnchangedWhenDebitFails() {
+        Wallet wallet = createWallet();
 
+        wallet.credit(new Money(new BigDecimal("100.00"), Currency.INR));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> wallet.debit(
+                        new Money(new BigDecimal("100.01"), Currency.INR)
+                )
+        );
+
+        assertEquals(
+                new BigDecimal("100.00"),
+                wallet.balance().amount()
+        );
+    }
+
+    @Test
+    void shouldRejectDebitWithWrongCurrency() {
+        Wallet wallet = createWallet();
+
+        wallet.credit(new Money(new BigDecimal("500.00"), Currency.INR));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> wallet.debit(
+                        new Money(new BigDecimal("100.00"), Currency.USD)
+                )
+        );
+
+        assertEquals(
+                new BigDecimal("500.00"),
+                wallet.balance().amount()
+        );
+    }
+
+    @Test
+    void shouldRejectNullDebitAmount() {
+        Wallet wallet = createWallet();
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> wallet.debit(null)
+        );
+    }
+    
     @Test
     void shouldRejectWrongCurrency() {
         Wallet wallet = createWallet();
