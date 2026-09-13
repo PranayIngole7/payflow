@@ -9,6 +9,7 @@ import com.payflow.wallet.application.GetWalletUseCase;
 import com.payflow.wallet.application.WalletRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import com.payflow.wallet.application.WithdrawMoneyUseCase;
 
 @Configuration
 public class WalletApplicationConfiguration {
@@ -39,6 +40,17 @@ public class WalletApplicationConfiguration {
             TransactionRunner transactionRunner
     ) {
         return new DepositMoneyUseCase(
+                walletRepository,
+                transactionRunner
+        );
+    }
+    
+    @Bean
+    public WithdrawMoneyUseCase withdrawMoneyUseCase(
+            WalletRepository walletRepository,
+            TransactionRunner transactionRunner
+    ) {
+        return new WithdrawMoneyUseCase(
                 walletRepository,
                 transactionRunner
         );
