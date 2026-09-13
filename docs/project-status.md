@@ -1,9 +1,9 @@
 # PayFlow — Project Progress Report
 
-**Date:** 11 September 2026  
-**Current Phase:** Phase 7 — User Service  
+**Date:** 13 September 2026  
+**Current Phase:** Phase 8 — Wallet Service  
 **Status:** COMPLETE  
-**Next Phase:** Phase 8 — Wallet Service
+**Next Phase:** Phase 9 — Payment Service
 
 ---
 
@@ -16,8 +16,8 @@
 | Phase 5 | Database Design | COMPLETE |
 | Phase 6 | Spring Boot Foundation | COMPLETE |
 | Phase 7 | User Service | COMPLETE |
-| Phase 8 | Wallet Service | NEXT |
-| Phase 9 | Payment Service | PLANNED |
+| Phase 8 | Wallet Service | COMPLETE |
+| Phase 9 | Payment Service | NEXT |
 | Phase 10 | Ledger | PLANNED |
 | Phase 11 | Security | PLANNED |
 | Phase 12 | Transactions + Concurrency | PLANNED |
@@ -178,8 +178,36 @@ Phase 7 is complete.
 
 ---
 
-# 8. Next Phase
+# 8. Phase 8 — Wallet Service
 
-**Phase 8 — Wallet Service**
+## Status
 
-The next phase will focus on wallet creation, wallet persistence, balance handling, and the wallet domain foundation.
+**COMPLETE**
+
+Phase 8 implemented and tested:
+
+- Wallet creation
+- Wallet retrieval
+- Deposit and withdrawal
+- Balance validation and consistency
+- Currency and amount validation
+- Insufficient-balance protection
+- Transaction boundaries
+- Optimistic locking
+- REST API validation and error handling
+- PostgreSQL integration testing
+
+Final regression result:
+
+```text
+Tests run: 242
+Failures: 0
+Errors: 0
+Skipped: 0
+
+BUILD SUCCESS
+```
+
+Phase 8 is complete.
+
+---
