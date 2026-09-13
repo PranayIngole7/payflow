@@ -1,27 +1,50 @@
 package com.payflow.wallet.application;
 
+import com.payflow.ledger.application.LedgerRepository;
+import com.payflow.ledger.domain.Ledger;
+import com.payflow.ledger.domain.LedgerEntry;
+import com.payflow.ledger.domain.LedgerEntryId;
+import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.shared.application.TransactionRunner;
 import com.payflow.shared.domain.Currency;
 import com.payflow.shared.domain.Money;
+import com.payflow.transaction.application.TransactionRepository;
+import com.payflow.transaction.domain.Transaction;
+import com.payflow.transaction.domain.TransactionId;
 import com.payflow.wallet.domain.Wallet;
 import com.payflow.wallet.domain.WalletId;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public final class WithdrawMoneyUseCase {
 
     private final WalletRepository walletRepository;
+    private final TransactionRepository transactionRepository;
+    private final LedgerRepository ledgerRepository;
     private final TransactionRunner transactionRunner;
 
     public WithdrawMoneyUseCase(
             WalletRepository walletRepository,
+            TransactionRepository transactionRepository,
+            LedgerRepository ledgerRepository,
             TransactionRunner transactionRunner
     ) {
         this.walletRepository = Objects.requireNonNull(
                 walletRepository,
                 "wallet repository must not be null"
+        );
+
+        this.transactionRepository = Objects.requireNonNull(
+                transactionRepository,
+                "transaction repository must not be null"
+        );
+
+        this.ledgerRepository = Objects.requireNonNull(
+                ledgerRepository,
+                "ledger repository must not be null"
         );
 
         this.transactionRunner = Objects.requireNonNull(
@@ -50,6 +73,10 @@ public final class WithdrawMoneyUseCase {
                 "withdrawal currency must not be null"
         );
 
+        Money money = new Money(amount, currency);
+
+        final Wallet[] result = new Wallet[1];
+
         transactionRunner.execute(() -> {
 
             Wallet wallet = walletRepository.findById(walletId)
@@ -57,18 +84,38 @@ public final class WithdrawMoneyUseCase {
                             "wallet not found: " + walletId.value()
                     ));
 
-            wallet.debit(
-                    new Money(amount, currency)
+            wallet.debit(money);
+
+            Transaction transaction = Transaction.createWithdrawal(
+                    TransactionId.generate(),
+                    walletId,
+                    money,
+                    Instant.now(),
+                    "withdrawal-" + walletId.value() + "-" + System.nanoTime()
             );
 
+            Ledger ledger = ledgerRepository
+                    .findByTransactionId(transaction.id())
+                    .orElseGet(Ledger::create);
+
+            LedgerEntry ledgerEntry = LedgerEntry.create(
+                    LedgerEntryId.generate(),
+                    transaction.id(),
+                    walletId,
+                    money,
+                    LedgerEntryType.DEBIT,
+                    Instant.now()
+            );
+
+            ledger.add(ledgerEntry);
+
+            transactionRepository.save(transaction);
             walletRepository.save(wallet);
+            ledgerRepository.save(ledger);
+
+            result[0] = wallet;
         });
 
-        return walletRepository.findById(walletId)
-                .orElseThrow(() ->
-                        new IllegalStateException(
-                                "wallet was not persisted"
-                        )
-                );
+        return result[0];
     }
 }

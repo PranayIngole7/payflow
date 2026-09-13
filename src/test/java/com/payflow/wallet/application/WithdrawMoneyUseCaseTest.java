@@ -1,8 +1,18 @@
 package com.payflow.wallet.application;
 
 import com.payflow.account.domain.AccountId;
+import com.payflow.ledger.application.LedgerRepository;
+import com.payflow.ledger.domain.Ledger;
+import com.payflow.ledger.domain.LedgerEntry;
+import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.shared.application.TransactionRunner;
 import com.payflow.shared.domain.Currency;
+import com.payflow.shared.domain.Money;
+import com.payflow.transaction.application.TransactionRepository;
+import com.payflow.transaction.domain.Transaction;
+import com.payflow.transaction.domain.TransactionId;
+import com.payflow.transaction.domain.TransactionStatus;
+import com.payflow.transaction.domain.TransactionType;
 import com.payflow.wallet.domain.Wallet;
 import com.payflow.wallet.domain.WalletId;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,13 +21,17 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class WithdrawMoneyUseCaseTest {
 
     private WalletRepository walletRepository;
+    private TransactionRepository transactionRepository;
+    private LedgerRepository ledgerRepository;
     private TransactionRunner transactionRunner;
     private WithdrawMoneyUseCase useCase;
 
@@ -27,10 +41,14 @@ class WithdrawMoneyUseCaseTest {
     @BeforeEach
     void setUp() {
         walletRepository = mock(WalletRepository.class);
+        transactionRepository = mock(TransactionRepository.class);
+        ledgerRepository = mock(LedgerRepository.class);
         transactionRunner = mock(TransactionRunner.class);
 
         useCase = new WithdrawMoneyUseCase(
                 walletRepository,
+                transactionRepository,
+                ledgerRepository,
                 transactionRunner
         );
 
@@ -43,10 +61,10 @@ class WithdrawMoneyUseCaseTest {
         Wallet wallet = createWalletWithBalance("100.00");
 
         when(walletRepository.findById(walletId))
-                .thenReturn(
-                        Optional.of(wallet),
-                        Optional.of(wallet)
-                );
+                .thenReturn(Optional.of(wallet));
+
+        when(ledgerRepository.findByTransactionId(any(TransactionId.class)))
+                .thenReturn(Optional.empty());
 
         executeTransactionImmediately();
 
@@ -67,6 +85,8 @@ class WithdrawMoneyUseCaseTest {
         );
 
         verify(walletRepository).save(wallet);
+        verify(transactionRepository).save(any(Transaction.class));
+        verify(ledgerRepository).save(any(Ledger.class));
         verify(transactionRunner).execute(any(Runnable.class));
     }
 
@@ -75,10 +95,10 @@ class WithdrawMoneyUseCaseTest {
         Wallet wallet = createWalletWithBalance("100.00");
 
         when(walletRepository.findById(walletId))
-                .thenReturn(
-                        Optional.of(wallet),
-                        Optional.of(wallet)
-                );
+                .thenReturn(Optional.of(wallet));
+
+        when(ledgerRepository.findByTransactionId(any(TransactionId.class)))
+                .thenReturn(Optional.empty());
 
         executeTransactionImmediately();
 
@@ -94,6 +114,126 @@ class WithdrawMoneyUseCaseTest {
         );
 
         verify(walletRepository).save(wallet);
+        verify(transactionRepository).save(any(Transaction.class));
+        verify(ledgerRepository).save(any(Ledger.class));
+    }
+
+    @Test
+    void shouldCreateWithdrawalTransaction() {
+        Wallet wallet = createWalletWithBalance("100.00");
+
+        when(walletRepository.findById(walletId))
+                .thenReturn(Optional.of(wallet));
+
+        when(ledgerRepository.findByTransactionId(any(TransactionId.class)))
+                .thenReturn(Optional.empty());
+
+        AtomicReference<Transaction> savedTransaction =
+                new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            savedTransaction.set(invocation.getArgument(0));
+            return null;
+        }).when(transactionRepository).save(any(Transaction.class));
+
+        executeTransactionImmediately();
+
+        useCase.execute(
+                walletId,
+                new BigDecimal("40.00"),
+                Currency.INR
+        );
+
+        Transaction transaction = savedTransaction.get();
+
+        assertNotNull(transaction);
+
+        assertEquals(
+                TransactionType.WITHDRAWAL,
+                transaction.type()
+        );
+
+        assertEquals(
+                walletId,
+                transaction.sourceWalletId()
+        );
+
+        assertNull(
+                transaction.destinationWalletId()
+        );
+
+        assertEquals(
+                new BigDecimal("40.00"),
+                transaction.amount().amount()
+        );
+
+        assertEquals(
+                Currency.INR,
+                transaction.currency()
+        );
+
+        assertEquals(
+                TransactionStatus.PENDING,
+                transaction.status()
+        );
+    }
+
+    @Test
+    void shouldCreateDebitLedgerEntry() {
+        Wallet wallet = createWalletWithBalance("100.00");
+
+        when(walletRepository.findById(walletId))
+                .thenReturn(Optional.of(wallet));
+
+        when(ledgerRepository.findByTransactionId(any(TransactionId.class)))
+                .thenReturn(Optional.empty());
+
+        AtomicReference<Ledger> savedLedger =
+                new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            savedLedger.set(invocation.getArgument(0));
+            return null;
+        }).when(ledgerRepository).save(any(Ledger.class));
+
+        executeTransactionImmediately();
+
+        useCase.execute(
+                walletId,
+                new BigDecimal("40.00"),
+                Currency.INR
+        );
+
+        Ledger ledger = savedLedger.get();
+
+        assertNotNull(ledger);
+
+        assertEquals(
+                1,
+                ledger.entries().size()
+        );
+
+        LedgerEntry entry = ledger.entries().getFirst();
+
+        assertEquals(
+                LedgerEntryType.DEBIT,
+                entry.type()
+        );
+
+        assertEquals(
+                walletId,
+                entry.walletId()
+        );
+
+        assertEquals(
+                new BigDecimal("40.00"),
+                entry.amount().amount()
+        );
+
+        assertEquals(
+                Currency.INR,
+                entry.currency()
+        );
     }
 
     @Test
@@ -113,6 +253,8 @@ class WithdrawMoneyUseCaseTest {
         );
 
         verify(walletRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
+        verify(ledgerRepository, never()).save(any());
     }
 
     @Test
@@ -134,6 +276,8 @@ class WithdrawMoneyUseCaseTest {
         );
 
         verify(walletRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
+        verify(ledgerRepository, never()).save(any());
     }
 
     @Test
@@ -155,6 +299,8 @@ class WithdrawMoneyUseCaseTest {
         );
 
         verify(walletRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
+        verify(ledgerRepository, never()).save(any());
     }
 
     @Test
@@ -184,6 +330,8 @@ class WithdrawMoneyUseCaseTest {
         );
 
         verify(walletRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
+        verify(ledgerRepository, never()).save(any());
     }
 
     @Test
@@ -210,6 +358,8 @@ class WithdrawMoneyUseCaseTest {
         );
 
         verify(walletRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
+        verify(ledgerRepository, never()).save(any());
     }
 
     @Test
@@ -225,6 +375,8 @@ class WithdrawMoneyUseCaseTest {
 
         verifyNoInteractions(
                 walletRepository,
+                transactionRepository,
+                ledgerRepository,
                 transactionRunner
         );
     }
@@ -242,6 +394,8 @@ class WithdrawMoneyUseCaseTest {
 
         verifyNoInteractions(
                 walletRepository,
+                transactionRepository,
+                ledgerRepository,
                 transactionRunner
         );
     }
@@ -259,6 +413,8 @@ class WithdrawMoneyUseCaseTest {
 
         verifyNoInteractions(
                 walletRepository,
+                transactionRepository,
+                ledgerRepository,
                 transactionRunner
         );
     }
@@ -268,10 +424,10 @@ class WithdrawMoneyUseCaseTest {
         Wallet wallet = createWalletWithBalance("100.00");
 
         when(walletRepository.findById(walletId))
-                .thenReturn(
-                        Optional.of(wallet),
-                        Optional.of(wallet)
-                );
+                .thenReturn(Optional.of(wallet));
+
+        when(ledgerRepository.findByTransactionId(any(TransactionId.class)))
+                .thenReturn(Optional.empty());
 
         executeTransactionImmediately();
 
@@ -289,10 +445,10 @@ class WithdrawMoneyUseCaseTest {
         Wallet wallet = createWalletWithBalance("100.00");
 
         when(walletRepository.findById(walletId))
-                .thenReturn(
-                        Optional.of(wallet),
-                        Optional.of(wallet)
-                );
+                .thenReturn(Optional.of(wallet));
+
+        when(ledgerRepository.findByTransactionId(any(TransactionId.class)))
+                .thenReturn(Optional.empty());
 
         executeTransactionImmediately();
 
@@ -306,7 +462,44 @@ class WithdrawMoneyUseCaseTest {
     }
 
     @Test
-    void shouldNotSaveWalletWhenWithdrawalFails() {
+    void shouldSaveTransactionBeforeLedger() {
+        Wallet wallet = createWalletWithBalance("100.00");
+
+        when(walletRepository.findById(walletId))
+                .thenReturn(Optional.of(wallet));
+
+        when(ledgerRepository.findByTransactionId(any(TransactionId.class)))
+                .thenReturn(Optional.empty());
+
+        AtomicReference<String> order =
+                new AtomicReference<>("");
+
+        doAnswer(invocation -> {
+            order.set(order.get() + "T");
+            return null;
+        }).when(transactionRepository).save(any(Transaction.class));
+
+        doAnswer(invocation -> {
+            order.set(order.get() + "L");
+            return null;
+        }).when(ledgerRepository).save(any(Ledger.class));
+
+        executeTransactionImmediately();
+
+        useCase.execute(
+                walletId,
+                new BigDecimal("25.00"),
+                Currency.INR
+        );
+
+        assertEquals(
+                "TL",
+                order.get()
+        );
+    }
+
+    @Test
+    void shouldNotPersistFinancialRecordsWhenWithdrawalFails() {
         Wallet wallet = createWalletWithBalance("100.00");
 
         when(walletRepository.findById(walletId))
@@ -324,6 +517,8 @@ class WithdrawMoneyUseCaseTest {
         );
 
         verify(walletRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
+        verify(ledgerRepository, never()).save(any());
     }
 
     private Wallet createWalletWithBalance(String amount) {
@@ -334,7 +529,7 @@ class WithdrawMoneyUseCaseTest {
         );
 
         wallet.credit(
-                new com.payflow.shared.domain.Money(
+                new Money(
                         new BigDecimal(amount),
                         Currency.INR
                 )

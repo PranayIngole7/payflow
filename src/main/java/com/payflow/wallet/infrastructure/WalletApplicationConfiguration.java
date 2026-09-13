@@ -53,10 +53,14 @@ public class WalletApplicationConfiguration {
     @Bean
     public WithdrawMoneyUseCase withdrawMoneyUseCase(
             WalletRepository walletRepository,
+            TransactionRepository transactionRepository,
+            LedgerRepository ledgerRepository,
             TransactionRunner transactionRunner
     ) {
         return new WithdrawMoneyUseCase(
                 walletRepository,
+                transactionRepository,
+                ledgerRepository,
                 transactionRunner
         );
     }
