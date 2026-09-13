@@ -4,6 +4,7 @@ import com.payflow.account.domain.AccountId;
 import com.payflow.wallet.application.CreateWalletUseCase;
 import com.payflow.wallet.application.DepositMoneyUseCase;
 import com.payflow.wallet.application.GetWalletUseCase;
+import com.payflow.wallet.application.WithdrawMoneyUseCase;
 import com.payflow.wallet.domain.WalletId;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -19,11 +20,13 @@ public class WalletController {
     private final CreateWalletUseCase createWalletUseCase;
     private final GetWalletUseCase getWalletUseCase;
     private final DepositMoneyUseCase depositMoneyUseCase;
+    private final WithdrawMoneyUseCase withdrawMoneyUseCase;
 
     public WalletController(
             CreateWalletUseCase createWalletUseCase,
             GetWalletUseCase getWalletUseCase,
-            DepositMoneyUseCase depositMoneyUseCase
+            DepositMoneyUseCase depositMoneyUseCase,
+            WithdrawMoneyUseCase withdrawMoneyUseCase
     ) {
         this.createWalletUseCase = Objects.requireNonNull(
                 createWalletUseCase,
@@ -38,6 +41,11 @@ public class WalletController {
         this.depositMoneyUseCase = Objects.requireNonNull(
                 depositMoneyUseCase,
                 "deposit money use case must not be null"
+        );
+
+        this.withdrawMoneyUseCase = Objects.requireNonNull(
+                withdrawMoneyUseCase,
+                "withdraw money use case must not be null"
         );
     }
 
@@ -72,6 +80,20 @@ public class WalletController {
     ) {
         return WalletResponse.from(
                 depositMoneyUseCase.execute(
+                        new WalletId(walletId),
+                        request.amount(),
+                        request.currency()
+                )
+        );
+    }
+
+    @PostMapping("/{walletId}/withdrawals")
+    public WalletResponse withdraw(
+            @PathVariable UUID walletId,
+            @Valid @RequestBody WithdrawMoneyRequest request
+    ) {
+        return WalletResponse.from(
+                withdrawMoneyUseCase.execute(
                         new WalletId(walletId),
                         request.amount(),
                         request.currency()
