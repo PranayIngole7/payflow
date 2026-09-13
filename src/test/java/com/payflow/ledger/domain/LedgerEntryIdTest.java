@@ -11,7 +11,7 @@ import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class LedgerEntryTest {
+class LedgerEntryIdTest {
 
     private final LedgerEntryId ledgerEntryId = LedgerEntryId.generate();
     private final TransactionId transactionId = TransactionId.generate();

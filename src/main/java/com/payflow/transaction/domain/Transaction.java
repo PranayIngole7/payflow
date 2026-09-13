@@ -7,7 +7,9 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Aggregate root representing a financial transfer transaction.
+ * Aggregate root representing a financial transaction.
+ *
+ * <p>A transaction may represent a transfer, deposit, or withdrawal.</p>
  */
 public final class Transaction {
 
@@ -17,6 +19,7 @@ public final class Transaction {
     private final Money amount;
     private final Instant createdAt;
     private final String idempotencyKey;
+    private final TransactionType type;
 
     private TransactionStatus status;
 
@@ -27,6 +30,7 @@ public final class Transaction {
             Money amount,
             Instant createdAt,
             String idempotencyKey,
+            TransactionType type,
             TransactionStatus status
     ) {
         this.id = Objects.requireNonNull(
@@ -34,21 +38,13 @@ public final class Transaction {
                 "transaction id must not be null"
         );
 
-        this.sourceWalletId = Objects.requireNonNull(
-                sourceWalletId,
-                "source wallet id must not be null"
+        this.type = Objects.requireNonNull(
+                type,
+                "transaction type must not be null"
         );
 
-        this.destinationWalletId = Objects.requireNonNull(
-                destinationWalletId,
-                "destination wallet id must not be null"
-        );
-
-        if (sourceWalletId.equals(destinationWalletId)) {
-            throw new IllegalArgumentException(
-                    "source and destination wallets must be different"
-            );
-        }
+        this.sourceWalletId = sourceWalletId;
+        this.destinationWalletId = destinationWalletId;
 
         this.amount = Objects.requireNonNull(
                 amount,
@@ -60,6 +56,12 @@ public final class Transaction {
                     "transaction amount must be greater than zero"
             );
         }
+
+        validateWallets(
+                type,
+                sourceWalletId,
+                destinationWalletId
+        );
 
         this.createdAt = Objects.requireNonNull(
                 createdAt,
@@ -76,9 +78,6 @@ public final class Transaction {
         );
     }
 
-    /**
-     * Creates a new transaction using an explicit idempotency key.
-     */
     public static Transaction create(
             TransactionId id,
             WalletId sourceWalletId,
@@ -87,6 +86,26 @@ public final class Transaction {
             Instant createdAt,
             String idempotencyKey
     ) {
+        return create(
+                id,
+                sourceWalletId,
+                destinationWalletId,
+                amount,
+                createdAt,
+                idempotencyKey,
+                TransactionType.TRANSFER
+        );
+    }
+
+    public static Transaction create(
+            TransactionId id,
+            WalletId sourceWalletId,
+            WalletId destinationWalletId,
+            Money amount,
+            Instant createdAt,
+            String idempotencyKey,
+            TransactionType type
+    ) {
         return new Transaction(
                 id,
                 sourceWalletId,
@@ -94,16 +113,13 @@ public final class Transaction {
                 amount,
                 createdAt,
                 idempotencyKey,
+                type,
                 TransactionStatus.PENDING
         );
     }
 
     /**
-     * Backward-compatible factory for existing domain tests.
-     *
-     * <p>The transaction identifier is used as a deterministic fallback
-     * idempotency key. Production application code should always provide
-     * an explicit client idempotency key.</p>
+     * Backward-compatible transfer creation.
      */
     public static Transaction create(
             TransactionId id,
@@ -123,12 +139,71 @@ public final class Transaction {
                 destinationWalletId,
                 amount,
                 createdAt,
-                id.value().toString()
+                id.value().toString(),
+                TransactionType.TRANSFER
+        );
+    }
+
+    public static Transaction createDeposit(
+            TransactionId id,
+            WalletId destinationWalletId,
+            Money amount,
+            Instant createdAt,
+            String idempotencyKey
+    ) {
+        return create(
+                id,
+                null,
+                destinationWalletId,
+                amount,
+                createdAt,
+                idempotencyKey,
+                TransactionType.DEPOSIT
+        );
+    }
+
+    public static Transaction createWithdrawal(
+            TransactionId id,
+            WalletId sourceWalletId,
+            Money amount,
+            Instant createdAt,
+            String idempotencyKey
+    ) {
+        return create(
+                id,
+                sourceWalletId,
+                null,
+                amount,
+                createdAt,
+                idempotencyKey,
+                TransactionType.WITHDRAWAL
+        );
+    }
+
+    public static Transaction reconstitute(
+            TransactionId id,
+            WalletId sourceWalletId,
+            WalletId destinationWalletId,
+            Money amount,
+            Instant createdAt,
+            String idempotencyKey,
+            TransactionType type,
+            TransactionStatus status
+    ) {
+        return new Transaction(
+                id,
+                sourceWalletId,
+                destinationWalletId,
+                amount,
+                createdAt,
+                idempotencyKey,
+                type,
+                status
         );
     }
 
     /**
-     * Reconstructs a persisted transaction with its original state.
+     * Backward-compatible transfer reconstitution with idempotency key.
      */
     public static Transaction reconstitute(
             TransactionId id,
@@ -139,19 +214,20 @@ public final class Transaction {
             String idempotencyKey,
             TransactionStatus status
     ) {
-        return new Transaction(
+        return reconstitute(
                 id,
                 sourceWalletId,
                 destinationWalletId,
                 amount,
                 createdAt,
                 idempotencyKey,
+                TransactionType.TRANSFER,
                 status
         );
     }
 
     /**
-     * Backward-compatible reconstruction method for existing tests.
+     * Backward-compatible transfer reconstitution.
      */
     public static Transaction reconstitute(
             TransactionId id,
@@ -173,19 +249,18 @@ public final class Transaction {
                 amount,
                 createdAt,
                 id.value().toString(),
+                TransactionType.TRANSFER,
                 status
         );
     }
 
     public void complete() {
         requirePending("complete");
-
         status = TransactionStatus.COMPLETED;
     }
 
     public void fail() {
         requirePending("fail");
-
         status = TransactionStatus.FAILED;
     }
 
@@ -217,6 +292,10 @@ public final class Transaction {
         return idempotencyKey;
     }
 
+    public TransactionType type() {
+        return type;
+    }
+
     public TransactionStatus status() {
         return status;
     }
@@ -224,11 +303,60 @@ public final class Transaction {
     private void requirePending(String operation) {
         if (status != TransactionStatus.PENDING) {
             throw new IllegalStateException(
-                    "cannot "
-                            + operation
-                            + " transaction in status "
-                            + status
+                    "cannot " + operation
+                            + " transaction in status " + status
             );
+        }
+    }
+
+    private static void validateWallets(
+            TransactionType type,
+            WalletId sourceWalletId,
+            WalletId destinationWalletId
+    ) {
+        switch (type) {
+            case TRANSFER -> {
+                Objects.requireNonNull(
+                        sourceWalletId,
+                        "source wallet id must not be null"
+                );
+                Objects.requireNonNull(
+                        destinationWalletId,
+                        "destination wallet id must not be null"
+                );
+
+                if (sourceWalletId.equals(destinationWalletId)) {
+                    throw new IllegalArgumentException(
+                            "source and destination wallets must be different"
+                    );
+                }
+            }
+
+            case DEPOSIT -> {
+                if (sourceWalletId != null) {
+                    throw new IllegalArgumentException(
+                            "deposit must not have a source wallet"
+                    );
+                }
+
+                Objects.requireNonNull(
+                        destinationWalletId,
+                        "deposit destination wallet must not be null"
+                );
+            }
+
+            case WITHDRAWAL -> {
+                Objects.requireNonNull(
+                        sourceWalletId,
+                        "withdrawal source wallet must not be null"
+                );
+
+                if (destinationWalletId != null) {
+                    throw new IllegalArgumentException(
+                            "withdrawal must not have a destination wallet"
+                    );
+                }
+            }
         }
     }
 

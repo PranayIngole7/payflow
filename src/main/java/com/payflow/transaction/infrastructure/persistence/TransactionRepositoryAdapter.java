@@ -4,6 +4,7 @@ import com.payflow.shared.domain.Money;
 import com.payflow.transaction.application.TransactionRepository;
 import com.payflow.transaction.domain.Transaction;
 import com.payflow.transaction.domain.TransactionId;
+import com.payflow.transaction.domain.TransactionType;
 import com.payflow.wallet.domain.WalletId;
 import com.payflow.wallet.infrastructure.persistence.SpringDataWalletRepository;
 import org.springframework.stereotype.Repository;
@@ -13,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
@@ -51,7 +53,11 @@ public class TransactionRepositoryAdapter
             String idempotencyKey
     ) {
         return idempotencyKeyRepository.findByKey(idempotencyKey)
-                .flatMap(key -> transactionRepository.findById(key.getPaymentId()))
+                .flatMap(key ->
+                        transactionRepository.findById(
+                                key.getPaymentId()
+                        )
+                )
                 .map(entity -> {
                     entity.setIdempotencyKey(idempotencyKey);
                     return toDomain(entity);
@@ -63,12 +69,20 @@ public class TransactionRepositoryAdapter
     public void save(Transaction transaction) {
 
         UUID transactionId = transaction.id().value();
+
+        UUID walletId = switch (transaction.type()) {
+            case TRANSFER, WITHDRAWAL ->
+                    transaction.sourceWalletId().value();
+
+            case DEPOSIT ->
+                    transaction.destinationWalletId().value();
+        };
+
         UUID userId = walletRepository
-                .findById(transaction.sourceWalletId().value())
+                .findById(walletId)
                 .orElseThrow(() ->
                         new IllegalStateException(
-                                "source wallet not found: "
-                                        + transaction.sourceWalletId().value()
+                                "wallet not found: " + walletId
                         )
                 )
                 .getAccountId();
@@ -78,18 +92,27 @@ public class TransactionRepositoryAdapter
 
         PaymentEntity.TransactionStatusValue paymentStatus =
                 switch (transaction.status()) {
-                    case PENDING -> PaymentEntity.TransactionStatusValue.PENDING;
-                    case COMPLETED -> PaymentEntity.TransactionStatusValue.COMPLETED;
-                    case FAILED -> PaymentEntity.TransactionStatusValue.FAILED;
+                    case PENDING ->
+                            PaymentEntity.TransactionStatusValue.PENDING;
+
+                    case COMPLETED ->
+                            PaymentEntity.TransactionStatusValue.COMPLETED;
+
+                    case FAILED ->
+                            PaymentEntity.TransactionStatusValue.FAILED;
                 };
 
         PaymentEntity payment = new PaymentEntity(
                 transactionId,
                 reference,
                 userId,
-                transaction.sourceWalletId().value(),
-                transaction.destinationWalletId().value(),
-                "TRANSFER",
+                transaction.sourceWalletId() == null
+                        ? null
+                        : transaction.sourceWalletId().value(),
+                transaction.destinationWalletId() == null
+                        ? null
+                        : transaction.destinationWalletId().value(),
+                transaction.type().name(),
                 transaction.amount().amount(),
                 transaction.currency(),
                 paymentStatus,
@@ -100,7 +123,8 @@ public class TransactionRepositoryAdapter
         paymentRepository.save(payment);
 
         Instant completedAt =
-                transaction.status() == com.payflow.transaction.domain.TransactionStatus.COMPLETED
+                transaction.status()
+                        == com.payflow.transaction.domain.TransactionStatus.COMPLETED
                         ? now
                         : null;
 
@@ -108,9 +132,13 @@ public class TransactionRepositoryAdapter
                 transactionId,
                 reference,
                 transactionId,
-                transaction.sourceWalletId().value(),
-                transaction.destinationWalletId().value(),
-                "TRANSFER",
+                transaction.sourceWalletId() == null
+                        ? null
+                        : transaction.sourceWalletId().value(),
+                transaction.destinationWalletId() == null
+                        ? null
+                        : transaction.destinationWalletId().value(),
+                transaction.type().name(),
                 transaction.amount().amount(),
                 transaction.currency(),
                 transaction.createdAt(),
@@ -118,24 +146,28 @@ public class TransactionRepositoryAdapter
                 completedAt
         );
 
-        entity.setIdempotencyKey(transaction.idempotencyKey());
+        entity.setIdempotencyKey(
+                transaction.idempotencyKey()
+        );
 
         transactionRepository.save(entity);
 
         String requestHash = hashRequest(transaction);
 
-        IdempotencyKeyEntity idempotencyKey = new IdempotencyKeyEntity(
-                UUID.nameUUIDFromBytes(
-                        (userId + ":" + transaction.idempotencyKey())
-                                .getBytes(StandardCharsets.UTF_8)
-                ),
-                userId,
-                transaction.idempotencyKey(),
-                requestHash,
-                transactionId,
-                transaction.createdAt(),
-                transaction.createdAt().plus(1, java.time.temporal.ChronoUnit.DAYS)
-        );
+        IdempotencyKeyEntity idempotencyKey =
+                new IdempotencyKeyEntity(
+                        UUID.nameUUIDFromBytes(
+                                (userId + ":" + transaction.idempotencyKey())
+                                        .getBytes(StandardCharsets.UTF_8)
+                        ),
+                        userId,
+                        transaction.idempotencyKey(),
+                        requestHash,
+                        transactionId,
+                        transaction.createdAt(),
+                        transaction.createdAt()
+                                .plus(1, ChronoUnit.DAYS)
+                );
 
         idempotencyKeyRepository.save(idempotencyKey);
     }
@@ -143,7 +175,8 @@ public class TransactionRepositoryAdapter
     private Transaction toDomainWithIdempotencyKey(
             TransactionEntity entity
     ) {
-        idempotencyKeyRepository.findByPaymentId(entity.getPaymentId())
+        idempotencyKeyRepository
+                .findByPaymentId(entity.getPaymentId())
                 .ifPresent(key ->
                         entity.setIdempotencyKey(key.getKey())
                 );
@@ -154,25 +187,58 @@ public class TransactionRepositoryAdapter
     private Transaction toDomain(
             TransactionEntity entity
     ) {
+        WalletId sourceWalletId =
+                entity.getSourceWalletId() == null
+                        ? null
+                        : new WalletId(
+                                entity.getSourceWalletId()
+                        );
+
+        WalletId destinationWalletId =
+                entity.getDestinationWalletId() == null
+                        ? null
+                        : new WalletId(
+                                entity.getDestinationWalletId()
+                        );
+
         return Transaction.reconstitute(
                 new TransactionId(entity.getId()),
-                new WalletId(entity.getSourceWalletId()),
-                new WalletId(entity.getDestinationWalletId()),
+                sourceWalletId,
+                destinationWalletId,
                 new Money(
                         entity.getAmount(),
                         entity.getCurrency()
                 ),
                 entity.getCreatedAt(),
                 entity.getIdempotencyKey(),
+                TransactionType.valueOf(entity.getType()),
                 entity.getStatus()
         );
     }
 
-    private String hashRequest(Transaction transaction) {
+    private String hashRequest(
+            Transaction transaction
+    ) {
+        String sourceWallet =
+                transaction.sourceWalletId() == null
+                        ? ""
+                        : transaction.sourceWalletId()
+                                .value()
+                                .toString();
+
+        String destinationWallet =
+                transaction.destinationWalletId() == null
+                        ? ""
+                        : transaction.destinationWalletId()
+                                .value()
+                                .toString();
+
         String canonical =
-                transaction.sourceWalletId().value()
+                transaction.type()
                         + "|"
-                        + transaction.destinationWalletId().value()
+                        + sourceWallet
+                        + "|"
+                        + destinationWallet
                         + "|"
                         + transaction.amount().amount()
                         + "|"
@@ -184,7 +250,9 @@ public class TransactionRepositoryAdapter
 
             return HexFormat.of().formatHex(
                     digest.digest(
-                            canonical.getBytes(StandardCharsets.UTF_8)
+                            canonical.getBytes(
+                                    StandardCharsets.UTF_8
+                            )
                     )
             );
         } catch (NoSuchAlgorithmException e) {

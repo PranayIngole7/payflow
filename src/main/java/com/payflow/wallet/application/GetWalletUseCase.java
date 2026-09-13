@@ -3,13 +3,16 @@ package com.payflow.wallet.application;
 import com.payflow.wallet.domain.Wallet;
 import com.payflow.wallet.domain.WalletId;
 
+import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public final class GetWalletUseCase {
 
     private final WalletRepository walletRepository;
 
-    public GetWalletUseCase(WalletRepository walletRepository) {
+    public GetWalletUseCase(
+            WalletRepository walletRepository
+    ) {
         this.walletRepository = Objects.requireNonNull(
                 walletRepository,
                 "wallet repository must not be null"
@@ -23,7 +26,7 @@ public final class GetWalletUseCase {
         );
 
         return walletRepository.findById(walletId)
-                .orElseThrow(() -> new java.util.NoSuchElementException(
+                .orElseThrow(() -> new NoSuchElementException(
                         "wallet not found: " + walletId.value()
                 ));
     }

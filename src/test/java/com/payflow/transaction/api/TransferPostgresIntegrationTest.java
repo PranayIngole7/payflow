@@ -3,10 +3,15 @@ package com.payflow.transaction.api;
 import com.payflow.account.domain.AccountStatus;
 import com.payflow.account.infrastructure.persistence.AccountEntity;
 import com.payflow.account.infrastructure.persistence.SpringDataAccountRepository;
+import com.payflow.ledger.domain.LedgerEntryType;
+import com.payflow.ledger.infrastructure.persistence.LedgerEntryEntity;
 import com.payflow.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
 import com.payflow.shared.api.ApiErrorResponse;
 import com.payflow.shared.domain.Currency;
 import com.payflow.transaction.domain.TransactionStatus;
+import com.payflow.transaction.infrastructure.persistence.IdempotencyKeyEntity;
+import com.payflow.transaction.infrastructure.persistence.SpringDataIdempotencyKeyRepository;
+import com.payflow.transaction.infrastructure.persistence.SpringDataPaymentRepository;
 import com.payflow.transaction.infrastructure.persistence.SpringDataTransactionRepository;
 import com.payflow.transaction.infrastructure.persistence.TransactionEntity;
 import com.payflow.wallet.infrastructure.persistence.SpringDataWalletRepository;
@@ -24,14 +29,10 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import com.payflow.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
-import com.payflow.transaction.infrastructure.persistence.SpringDataIdempotencyKeyRepository;
-import com.payflow.transaction.infrastructure.persistence.SpringDataPaymentRepository;
-import com.payflow.transaction.infrastructure.persistence.IdempotencyKeyEntity;
-import com.payflow.transaction.infrastructure.persistence.SpringDataIdempotencyKeyRepository;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -76,41 +77,41 @@ class TransferPostgresIntegrationTest {
     @BeforeEach
     void setUp() {
 
-    	ledgerEntryRepository.deleteAll();
-    	idempotencyKeyRepository.deleteAll();
-    	transactionRepository.deleteAll();
-    	paymentRepository.deleteAll();
-    	walletRepository.deleteAll();
-    	accountRepository.deleteAll();
+        ledgerEntryRepository.deleteAll();
+        idempotencyKeyRepository.deleteAll();
+        transactionRepository.deleteAll();
+        paymentRepository.deleteAll();
+        walletRepository.deleteAll();
+        accountRepository.deleteAll();
 
-    	UUID sourceAccountId = UUID.randomUUID();
-    	UUID destinationAccountId = UUID.randomUUID();
+        UUID sourceAccountId = UUID.randomUUID();
+        UUID destinationAccountId = UUID.randomUUID();
 
-    	Instant createdAt = Instant.now();
+        Instant createdAt = Instant.now();
 
-    	AccountEntity sourceAccount =
-    	        new AccountEntity(
-    	                sourceAccountId,
-    	                "alice@example.com",
-    	                "Alice",
-    	                "Smith",
-    	                "UNUSED",
-    	                AccountStatus.ACTIVE,
-    	                createdAt,
-    	                createdAt
-    	        );
+        AccountEntity sourceAccount =
+                new AccountEntity(
+                        sourceAccountId,
+                        "alice@example.com",
+                        "Alice",
+                        "Smith",
+                        "UNUSED",
+                        AccountStatus.ACTIVE,
+                        createdAt,
+                        createdAt
+                );
 
-    	AccountEntity destinationAccount =
-    	        new AccountEntity(
-    	                destinationAccountId,
-    	                "bob@example.com",
-    	                "Bob",
-    	                "Jones",
-    	                "UNUSED",
-    	                AccountStatus.ACTIVE,
-    	                createdAt,
-    	                createdAt
-    	        );
+        AccountEntity destinationAccount =
+                new AccountEntity(
+                        destinationAccountId,
+                        "bob@example.com",
+                        "Bob",
+                        "Jones",
+                        "UNUSED",
+                        AccountStatus.ACTIVE,
+                        createdAt,
+                        createdAt
+                );
 
         accountRepository.save(sourceAccount);
         accountRepository.save(destinationAccount);
@@ -192,7 +193,9 @@ class TransferPostgresIntegrationTest {
         );
 
         IdempotencyKeyEntity idempotencyKey =
-                idempotencyKeyRepository.findByPaymentId(transaction.getPaymentId())
+                idempotencyKeyRepository.findByPaymentId(
+                                transaction.getPaymentId()
+                        )
                         .orElseThrow();
 
         assertEquals(
@@ -203,6 +206,99 @@ class TransferPostgresIntegrationTest {
         assertEquals(
                 new BigDecimal("250.00"),
                 transaction.getAmount()
+        );
+
+        // ------------------------------------------------------------
+        // Wallet balance verification
+        // ------------------------------------------------------------
+
+        WalletEntity persistedSourceWallet =
+                walletRepository.findById(sourceWalletId)
+                        .orElseThrow();
+
+        WalletEntity persistedDestinationWallet =
+                walletRepository.findById(destinationWalletId)
+                        .orElseThrow();
+
+        assertEquals(
+                new BigDecimal("750.00"),
+                persistedSourceWallet.getBalance()
+        );
+
+        assertEquals(
+                new BigDecimal("350.00"),
+                persistedDestinationWallet.getBalance()
+        );
+
+        // ------------------------------------------------------------
+        // Ledger verification
+        // ------------------------------------------------------------
+
+        List<LedgerEntryEntity> ledgerEntries =
+                ledgerEntryRepository
+                        .findByTransactionIdOrderByCreatedAtAsc(
+                                transactionId
+                        );
+
+        assertEquals(
+                2,
+                ledgerEntries.size()
+        );
+
+        LedgerEntryEntity debitEntry =
+                ledgerEntries.stream()
+                        .filter(entry ->
+                                entry.getType() == LedgerEntryType.DEBIT
+                        )
+                        .findFirst()
+                        .orElseThrow();
+
+        LedgerEntryEntity creditEntry =
+                ledgerEntries.stream()
+                        .filter(entry ->
+                                entry.getType() == LedgerEntryType.CREDIT
+                        )
+                        .findFirst()
+                        .orElseThrow();
+
+        assertEquals(
+                sourceWalletId,
+                debitEntry.getWalletId()
+        );
+
+        assertEquals(
+                destinationWalletId,
+                creditEntry.getWalletId()
+        );
+
+        assertEquals(
+                new BigDecimal("250.00"),
+                debitEntry.getAmount()
+        );
+
+        assertEquals(
+                new BigDecimal("250.00"),
+                creditEntry.getAmount()
+        );
+
+        assertEquals(
+                Currency.INR,
+                debitEntry.getCurrency()
+        );
+
+        assertEquals(
+                Currency.INR,
+                creditEntry.getCurrency()
+        );
+
+        assertEquals(
+                transactionId,
+                debitEntry.getTransactionId()
+        );
+
+        assertEquals(
+                transactionId,
+                creditEntry.getTransactionId()
         );
     }
 
@@ -256,7 +352,9 @@ class TransferPostgresIntegrationTest {
                         .orElseThrow();
 
         IdempotencyKeyEntity idempotencyKey =
-                idempotencyKeyRepository.findByPaymentId(transaction.getPaymentId())
+                idempotencyKeyRepository.findByPaymentId(
+                                transaction.getPaymentId()
+                        )
                         .orElseThrow();
 
         assertEquals(
@@ -264,8 +362,10 @@ class TransferPostgresIntegrationTest {
                 idempotencyKey.getKey()
         );
     }
+
     private String url() {
         return "http://localhost:" + port + "/api/v1/transfers";
     }
+
     // Keep the remaining test methods from your existing file unchanged.
 }
