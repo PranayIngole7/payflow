@@ -28,10 +28,14 @@ public class PaymentController {
 
     @PostMapping
     public ResponseEntity<PaymentResponse> createPayment(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody CreatePaymentRequest request
     ) {
         Payment payment =
-                createPaymentUseCase.execute(request.toCommand());
+                createPaymentUseCase.execute(
+                        request.toCommand(),
+                        idempotencyKey
+                );
 
         PaymentResponse response =
                 PaymentResponse.from(payment);

@@ -7,128 +7,305 @@ import com.payflow.transaction.domain.Payment;
 import com.payflow.transaction.domain.PaymentStatus;
 import com.payflow.transaction.domain.TransactionType;
 import com.payflow.wallet.domain.WalletId;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class CreatePaymentUseCaseTest {
 
-    @Test
-    void shouldCreateAndSavePayment() {
+    @Mock
+    private PaymentRepository paymentRepository;
 
-        PaymentRepository repository =
-                mock(PaymentRepository.class);
+    @Mock
+    private IdempotencyKeyRepository idempotencyKeyRepository;
 
-        CreatePaymentUseCase useCase =
-                new CreatePaymentUseCase(repository);
+    @Mock
+    private PaymentRequestHasher paymentRequestHasher;
 
-        AccountId accountId =
-                new AccountId(UUID.randomUUID());
+    private CreatePaymentUseCase useCase;
 
-        WalletId sourceWalletId =
-                new WalletId(UUID.randomUUID());
+    private AccountId accountId;
+    private WalletId sourceWalletId;
+    private WalletId destinationWalletId;
+    private CreatePaymentCommand command;
 
-        WalletId destinationWalletId =
-                new WalletId(UUID.randomUUID());
+    @BeforeEach
+    void setUp() {
+        useCase = new CreatePaymentUseCase(
+                paymentRepository,
+                idempotencyKeyRepository,
+                paymentRequestHasher
+        );
 
-        Money amount =
+        accountId = new AccountId(UUID.randomUUID());
+        sourceWalletId = new WalletId(UUID.randomUUID());
+        destinationWalletId = new WalletId(UUID.randomUUID());
+
+        command = new CreatePaymentCommand(
+                "PAY-001",
+                accountId,
+                sourceWalletId,
+                destinationWalletId,
                 new Money(
                         new BigDecimal("100.00"),
                         Currency.INR
-                );
+                ),
+                TransactionType.TRANSFER
+        );
+    }
 
-        CreatePaymentCommand command =
-                new CreatePaymentCommand(
-                        "PAY-001",
-                        accountId,
-                        sourceWalletId,
-                        destinationWalletId,
-                        amount,
-                        TransactionType.TRANSFER
-                );
+    @Test
+    void shouldCreateAndSavePayment() {
+        when(idempotencyKeyRepository.findByAccountIdAndKey(
+                accountId,
+                "KEY-001"
+        )).thenReturn(Optional.empty());
 
-        Payment result = useCase.execute(command);
+        when(paymentRequestHasher.hash(any(Payment.class)))
+                .thenReturn("hash-001");
+
+        Payment result =
+                useCase.execute(command, "KEY-001");
 
         assertNotNull(result);
-        assertNotNull(result.id());
-        assertEquals("PAY-001", result.reference());
-        assertEquals(accountId, result.accountId());
-        assertEquals(sourceWalletId, result.sourceWalletId());
-        assertEquals(destinationWalletId, result.destinationWalletId());
-        assertEquals(amount, result.amount());
-        assertEquals(
-                TransactionType.TRANSFER,
-                result.type()
-        );
-        assertEquals(
-                PaymentStatus.PENDING,
-                result.status()
-        );
+        assertEquals(PaymentStatus.PENDING, result.status());
 
-        verify(repository).save(result);
-    }
+        verify(paymentRepository).save(result);
 
-    @Test
-    void shouldCreatePaymentWithPendingStatus() {
-
-        PaymentRepository repository =
-                mock(PaymentRepository.class);
-
-        CreatePaymentUseCase useCase =
-                new CreatePaymentUseCase(repository);
-
-        CreatePaymentCommand command =
-                new CreatePaymentCommand(
-                        "PAY-002",
-                        new AccountId(UUID.randomUUID()),
-                        new WalletId(UUID.randomUUID()),
-                        new WalletId(UUID.randomUUID()),
-                        new Money(
-                                new BigDecimal("50.00"),
-                                Currency.INR
-                        ),
-                        TransactionType.TRANSFER
-                );
-
-        Payment result = useCase.execute(command);
-
-        assertEquals(
-                PaymentStatus.PENDING,
-                result.status()
+        verify(idempotencyKeyRepository).save(
+                eq(accountId),
+                eq("KEY-001"),
+                eq("hash-001"),
+                eq(result.id().value()),
+                eq(result.createdAt()),
+                any()
         );
     }
 
     @Test
-    void shouldNotSaveWhenPaymentCreationFails() {
+    void shouldReturnExistingPaymentForSameIdempotencyKey() {
+        Payment existingPayment = Payment.create(
+                com.payflow.transaction.domain.PaymentId.generate(),
+                "PAY-001",
+                accountId,
+                sourceWalletId,
+                destinationWalletId,
+                new Money(
+                        new BigDecimal("100.00"),
+                        Currency.INR
+                ),
+                java.time.Instant.parse(
+                        "2026-09-14T10:00:00Z"
+                ),
+                TransactionType.TRANSFER
+        );
 
-        PaymentRepository repository =
-                mock(PaymentRepository.class);
+        when(idempotencyKeyRepository.findByAccountIdAndKey(
+                accountId,
+                "KEY-001"
+        )).thenReturn(
+                Optional.of(
+                        new IdempotencyKeyRepository.IdempotencyRecord(
+                                accountId,
+                                "KEY-001",
+                                "hash-001",
+                                existingPayment.id().value(),
+                                existingPayment.createdAt(),
+                                existingPayment.createdAt()
+                                        .plus(java.time.Duration.ofDays(1))
+                        )
+                )
+        );
 
-        CreatePaymentUseCase useCase =
-                new CreatePaymentUseCase(repository);
+        when(paymentRequestHasher.hash(any(Payment.class)))
+                .thenReturn("hash-001");
 
-        CreatePaymentCommand command =
-                new CreatePaymentCommand(
-                        "PAY-003",
-                        new AccountId(UUID.randomUUID()),
-                        new WalletId(UUID.randomUUID()),
-                        new WalletId(UUID.randomUUID()),
-                        new Money(
-                                BigDecimal.ZERO,
-                                Currency.INR
-                        ),
-                        TransactionType.TRANSFER
+        when(paymentRepository.findById(existingPayment.id()))
+                .thenReturn(Optional.of(existingPayment));
+
+        Payment result =
+                useCase.execute(command, "KEY-001");
+
+        assertEquals(existingPayment.id(), result.id());
+        assertEquals(existingPayment.reference(), result.reference());
+
+        verify(paymentRepository, never()).save(any());
+        verify(idempotencyKeyRepository, never()).save(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
+    void shouldRejectSameKeyForDifferentRequest() {
+        when(idempotencyKeyRepository.findByAccountIdAndKey(
+                accountId,
+                "KEY-001"
+        )).thenReturn(
+                Optional.of(
+                        new IdempotencyKeyRepository.IdempotencyRecord(
+                                accountId,
+                                "KEY-001",
+                                "different-hash",
+                                UUID.randomUUID(),
+                                java.time.Instant.parse(
+                                        "2026-09-14T10:00:00Z"
+                                ),
+                                java.time.Instant.parse(
+                                        "2026-09-15T10:00:00Z"
+                                )
+                        )
+                )
+        );
+
+        when(paymentRequestHasher.hash(any(Payment.class)))
+                .thenReturn("hash-001");
+
+        IllegalStateException exception =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> useCase.execute(
+                                command,
+                                "KEY-001"
+                        )
                 );
+
+        assertEquals(
+                "idempotency key has already been used for a different payment",
+                exception.getMessage()
+        );
+
+        verify(paymentRepository, never()).save(any());
+        verify(idempotencyKeyRepository, never()).save(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
+    void shouldNormalizeIdempotencyKey() {
+        when(idempotencyKeyRepository.findByAccountIdAndKey(
+                accountId,
+                "KEY-001"
+        )).thenReturn(Optional.empty());
+
+        when(paymentRequestHasher.hash(any(Payment.class)))
+                .thenReturn("hash-001");
+
+        useCase.execute(command, "  KEY-001  ");
+
+        verify(idempotencyKeyRepository).findByAccountIdAndKey(
+                accountId,
+                "KEY-001"
+        );
+
+        verify(idempotencyKeyRepository).save(
+                eq(accountId),
+                eq("KEY-001"),
+                eq("hash-001"),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
+    void shouldRejectNullIdempotencyKey() {
+        assertThrows(
+                NullPointerException.class,
+                () -> useCase.execute(command, null)
+        );
+
+        verifyNoInteractions(
+                paymentRepository,
+                idempotencyKeyRepository,
+                paymentRequestHasher
+        );
+    }
+
+    @Test
+    void shouldRejectBlankIdempotencyKey() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> useCase.execute(command, "   ")
+        );
+
+        verifyNoInteractions(
+                paymentRepository,
+                idempotencyKeyRepository,
+                paymentRequestHasher
+        );
+    }
+
+    @Test
+    void shouldRejectIdempotencyKeyLongerThan100Characters() {
+        String key = "a".repeat(101);
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> useCase.execute(command)
+                () -> useCase.execute(command, key)
         );
 
-        verify(repository, never()).save(any());
+        verifyNoInteractions(
+                paymentRepository,
+                idempotencyKeyRepository,
+                paymentRequestHasher
+        );
+    }
+
+    @Test
+    void shouldCreateSeparatePaymentForDifferentKey() {
+        when(idempotencyKeyRepository.findByAccountIdAndKey(
+                accountId,
+                "KEY-001"
+        )).thenReturn(Optional.empty());
+
+        when(idempotencyKeyRepository.findByAccountIdAndKey(
+                accountId,
+                "KEY-002"
+        )).thenReturn(Optional.empty());
+
+        when(paymentRequestHasher.hash(any(Payment.class)))
+                .thenReturn("hash-001", "hash-002");
+
+        Payment first =
+                useCase.execute(command, "KEY-001");
+
+        Payment second =
+                useCase.execute(command, "KEY-002");
+
+        assertNotEquals(first.id(), second.id());
+
+        verify(paymentRepository, times(2))
+                .save(any(Payment.class));
+
+        verify(idempotencyKeyRepository, times(2))
+                .save(
+                        eq(accountId),
+                        anyString(),
+                        anyString(),
+                        any(),
+                        any(),
+                        any()
+                );
     }
 }

@@ -11,4 +11,9 @@ public interface SpringDataIdempotencyKeyRepository
     Optional<IdempotencyKeyEntity> findByKey(String key);
 
     Optional<IdempotencyKeyEntity> findByPaymentId(UUID paymentId);
+
+    Optional<IdempotencyKeyEntity> findByUserIdAndKey(
+            UUID userId,
+            String key
+    );
 }
