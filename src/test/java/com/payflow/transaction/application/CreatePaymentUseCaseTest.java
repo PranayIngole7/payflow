@@ -478,4 +478,43 @@ class CreatePaymentUseCaseTest {
 
         verifyNoInteractions(paymentRepository);
     }
+    
+    @Test
+    void shouldNotSaveIdempotencyRecordWhenPaymentValidationFails() {
+        CreatePaymentCommand command = new CreatePaymentCommand(
+                "PAY-SEM-008",
+                accountId,
+                sourceWalletId,
+                sourceWalletId,
+                money,
+                TransactionType.TRANSFER
+        );
+
+        assertThatThrownBy(() ->
+                useCase.execute(command, "semantic-008")
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("different");
+
+        verifyNoInteractions(paymentRepository);
+
+        verify(idempotencyKeyRepository)
+                .findByAccountIdAndKey(
+                        accountId,
+                        "semantic-008"
+                );
+
+        verify(idempotencyKeyRepository, never())
+                .save(
+                        any(),
+                        anyString(),
+                        anyString(),
+                        any(),
+                        any(),
+                        any()
+                );
+
+        verifyNoInteractions(paymentRequestHasher);
+    }
+    
 }
