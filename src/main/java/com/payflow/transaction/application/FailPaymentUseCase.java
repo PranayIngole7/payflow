@@ -32,11 +32,8 @@ public class FailPaymentUseCase {
         Payment payment = paymentRepository
                 .findById(paymentId)
                 .orElseThrow(() ->
-                        new IllegalStateException(
-                                "payment not found: "
-                                        + paymentId.value()
-                        )
-                );
+                new PaymentNotFoundException(paymentId)
+        );
 
         payment.fail(Instant.now());
 

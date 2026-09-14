@@ -105,7 +105,7 @@ class FailPaymentUseCaseTest {
         assertThatThrownBy(() ->
                 useCase.execute(paymentId)
         )
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(PaymentNotFoundException.class)
                 .hasMessageContaining("payment not found");
 
         verify(paymentRepository)
