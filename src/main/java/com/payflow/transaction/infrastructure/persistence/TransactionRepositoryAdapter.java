@@ -90,16 +90,16 @@ public class TransactionRepositoryAdapter
         String reference = transactionId.toString();
         Instant now = Instant.now();
 
-        PaymentEntity.TransactionStatusValue paymentStatus =
+        PaymentEntity.PaymentStatusValue paymentStatus =
                 switch (transaction.status()) {
                     case PENDING ->
-                            PaymentEntity.TransactionStatusValue.PENDING;
+                            PaymentEntity.PaymentStatusValue.PENDING;
 
                     case COMPLETED ->
-                            PaymentEntity.TransactionStatusValue.COMPLETED;
+                            PaymentEntity.PaymentStatusValue.COMPLETED;
 
                     case FAILED ->
-                            PaymentEntity.TransactionStatusValue.FAILED;
+                            PaymentEntity.PaymentStatusValue.FAILED;
                 };
 
         PaymentEntity payment = new PaymentEntity(

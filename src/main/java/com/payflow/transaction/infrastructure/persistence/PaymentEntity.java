@@ -1,12 +1,7 @@
 package com.payflow.transaction.infrastructure.persistence;
 
 import com.payflow.shared.domain.Currency;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -47,12 +42,12 @@ public class PaymentEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    private TransactionStatusValue status;
+    private PaymentStatusValue status;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(nullable = false)
     private Instant createdAt;
 
-    @Column(name = "updated_at", nullable = false)
+    @Column(nullable = false)
     private Instant updatedAt;
 
     protected PaymentEntity() {
@@ -67,7 +62,7 @@ public class PaymentEntity {
             String type,
             BigDecimal amount,
             Currency currency,
-            TransactionStatusValue status,
+            PaymentStatusValue status,
             Instant createdAt,
             Instant updatedAt
     ) {
@@ -116,7 +111,7 @@ public class PaymentEntity {
         return currency;
     }
 
-    public TransactionStatusValue getStatus() {
+    public PaymentStatusValue getStatus() {
         return status;
     }
 
@@ -128,7 +123,7 @@ public class PaymentEntity {
         return updatedAt;
     }
 
-    public enum TransactionStatusValue {
+    public enum PaymentStatusValue {
         PENDING,
         COMPLETED,
         FAILED,
