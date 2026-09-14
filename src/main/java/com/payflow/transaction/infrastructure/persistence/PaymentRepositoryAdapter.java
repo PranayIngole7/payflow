@@ -9,6 +9,7 @@ import com.payflow.transaction.domain.PaymentStatus;
 import com.payflow.transaction.domain.TransactionType;
 import com.payflow.wallet.domain.WalletId;
 import org.springframework.stereotype.Repository;
+import java.util.List;
 
 import java.util.Optional;
 
@@ -109,5 +110,14 @@ public class PaymentRepositoryAdapter
                         entity.getStatus().name()
                 )
         );
+    }
+    
+    @Override
+    public List<Payment> findByAccountId(AccountId accountId) {
+        return paymentRepository
+                .findByUserIdOrderByCreatedAtDesc(accountId.value())
+                .stream()
+                .map(this::toDomain)
+                .toList();
     }
 }
