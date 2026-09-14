@@ -97,5 +97,19 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
     }
+    
+    @ExceptionHandler(NullPointerException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiErrorResponse handleNullPointer(
+            NullPointerException exception,
+            HttpServletRequest request
+    ) {
+        return ApiErrorResponse.of(
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                exception.getMessage(),
+                request.getRequestURI()
+        );
+    }
 
 }
