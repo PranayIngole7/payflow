@@ -3,7 +3,9 @@ package com.payflow.transaction.api;
 import com.payflow.account.domain.AccountId;
 import com.payflow.transaction.application.CreatePaymentCommand;
 import com.payflow.transaction.application.CreatePaymentUseCase;
+import com.payflow.transaction.application.FailPaymentUseCase;
 import com.payflow.transaction.application.GetPaymentHistoryUseCase;
+import com.payflow.transaction.application.PaymentNotFoundException;
 import com.payflow.transaction.domain.Payment;
 import com.payflow.transaction.domain.PaymentId;
 import com.payflow.transaction.domain.PaymentStatus;
@@ -19,6 +21,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.mockito.Mockito.doThrow;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -48,6 +51,9 @@ class PaymentApiTest {
 
     @MockitoBean
     private GetPaymentHistoryUseCase getPaymentHistoryUseCase;
+    
+    @MockitoBean
+    private FailPaymentUseCase failPaymentUseCase;
 
     @Test
     void shouldCreatePayment() throws Exception {
@@ -508,5 +514,21 @@ class PaymentApiTest {
                                 .content(body)
                 )
                 .andExpect(status().isBadRequest());
+    }
+    
+    @Test
+    void shouldReturn404WhenPaymentDoesNotExist() throws Exception {
+        UUID paymentId = UUID.randomUUID();
+
+        doThrow(new PaymentNotFoundException(
+                new PaymentId(paymentId)
+        ))
+                .when(failPaymentUseCase)
+                .execute(new PaymentId(paymentId));
+
+        mockMvc.perform(
+                post("/api/v1/payments/" + paymentId + "/failure")
+        )
+                .andExpect(status().isNotFound());
     }
 }

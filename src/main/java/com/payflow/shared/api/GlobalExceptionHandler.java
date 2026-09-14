@@ -1,6 +1,8 @@
 package com.payflow.shared.api;
 
 import jakarta.servlet.http.HttpServletRequest;
+import com.payflow.transaction.application.PaymentNotFoundException;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
@@ -112,4 +114,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(PaymentNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiErrorResponse handlePaymentNotFound(
+            PaymentNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return ApiErrorResponse.of(
+                HttpStatus.NOT_FOUND.value(),
+                HttpStatus.NOT_FOUND.getReasonPhrase(),
+                exception.getMessage(),
+                request.getRequestURI()
+        );
+    }
+    
 }

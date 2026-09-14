@@ -1,12 +1,13 @@
 package com.payflow.transaction.api;
 
-import com.payflow.account.domain.AccountId;
 import com.payflow.transaction.application.CreatePaymentUseCase;
+import com.payflow.transaction.application.FailPaymentUseCase;
 import com.payflow.transaction.application.GetPaymentHistoryUseCase;
 import com.payflow.transaction.domain.Payment;
+import com.payflow.transaction.domain.PaymentId;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import jakarta.validation.Valid;
 
 import java.net.URI;
 import java.util.List;
@@ -18,13 +19,16 @@ public class PaymentController {
 
     private final CreatePaymentUseCase createPaymentUseCase;
     private final GetPaymentHistoryUseCase getPaymentHistoryUseCase;
+    private final FailPaymentUseCase failPaymentUseCase;
 
     public PaymentController(
             CreatePaymentUseCase createPaymentUseCase,
-            GetPaymentHistoryUseCase getPaymentHistoryUseCase
+            GetPaymentHistoryUseCase getPaymentHistoryUseCase,
+            FailPaymentUseCase failPaymentUseCase
     ) {
         this.createPaymentUseCase = createPaymentUseCase;
         this.getPaymentHistoryUseCase = getPaymentHistoryUseCase;
+        this.failPaymentUseCase = failPaymentUseCase;
     }
 
     @PostMapping
@@ -49,18 +53,32 @@ public class PaymentController {
                 )
                 .body(response);
     }
-    
+
     @GetMapping
     public ResponseEntity<List<PaymentResponse>> getPaymentHistory(
             @RequestParam UUID accountId
     ) {
         List<PaymentResponse> response =
                 getPaymentHistoryUseCase
-                        .execute(new AccountId(accountId))
+                        .execute(new com.payflow.account.domain.AccountId(accountId))
                         .stream()
                         .map(PaymentResponse::from)
                         .toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{paymentId}/failure")
+    public ResponseEntity<PaymentResponse> failPayment(
+            @PathVariable UUID paymentId
+    ) {
+        Payment payment =
+                failPaymentUseCase.execute(
+                        new PaymentId(paymentId)
+                );
+
+        return ResponseEntity.ok(
+                PaymentResponse.from(payment)
+        );
     }
 }
