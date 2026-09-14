@@ -314,4 +314,119 @@ class PaymentApiTest {
 
         verifyNoMoreInteractions(createPaymentUseCase);
     }
+    
+    @Test
+    void shouldRejectBlankReference() throws Exception {
+        String accountId = UUID.randomUUID().toString();
+
+        String body = """
+                {
+                  "reference": "",
+                  "accountId": "%s",
+                  "sourceWalletId": "%s",
+                  "destinationWalletId": "%s",
+                  "amount": 100.00,
+                  "currency": "INR",
+                  "type": "TRANSFER"
+                }
+                """.formatted(
+                accountId,
+                UUID.randomUUID(),
+                UUID.randomUUID()
+        );
+
+        mockMvc.perform(
+                        post("/api/v1/payments")
+                                .header("Idempotency-Key", "validation-001")
+                                .contentType(APPLICATION_JSON)
+                                .content(body)
+                )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldRejectMissingAmount() throws Exception {
+        String accountId = UUID.randomUUID().toString();
+
+        String body = """
+                {
+                  "reference": "PAY-VALIDATION-002",
+                  "accountId": "%s",
+                  "sourceWalletId": "%s",
+                  "destinationWalletId": "%s",
+                  "currency": "INR",
+                  "type": "TRANSFER"
+                }
+                """.formatted(
+                accountId,
+                UUID.randomUUID(),
+                UUID.randomUUID()
+        );
+
+        mockMvc.perform(
+                        post("/api/v1/payments")
+                                .header("Idempotency-Key", "validation-002")
+                                .contentType(APPLICATION_JSON)
+                                .content(body)
+                )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldRejectZeroAmount() throws Exception {
+        String accountId = UUID.randomUUID().toString();
+
+        String body = """
+                {
+                  "reference": "PAY-VALIDATION-003",
+                  "accountId": "%s",
+                  "sourceWalletId": "%s",
+                  "destinationWalletId": "%s",
+                  "amount": 0,
+                  "currency": "INR",
+                  "type": "TRANSFER"
+                }
+                """.formatted(
+                accountId,
+                UUID.randomUUID(),
+                UUID.randomUUID()
+        );
+
+        mockMvc.perform(
+                        post("/api/v1/payments")
+                                .header("Idempotency-Key", "validation-003")
+                                .contentType(APPLICATION_JSON)
+                                .content(body)
+                )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldRejectMissingCurrency() throws Exception {
+        String accountId = UUID.randomUUID().toString();
+
+        String body = """
+                {
+                  "reference": "PAY-VALIDATION-004",
+                  "accountId": "%s",
+                  "sourceWalletId": "%s",
+                  "destinationWalletId": "%s",
+                  "amount": 100.00,
+                  "type": "TRANSFER"
+                }
+                """.formatted(
+                accountId,
+                UUID.randomUUID(),
+                UUID.randomUUID()
+        );
+
+        mockMvc.perform(
+                        post("/api/v1/payments")
+                                .header("Idempotency-Key", "validation-004")
+                                .contentType(APPLICATION_JSON)
+                                .content(body)
+                )
+                .andExpect(status().isBadRequest());
+    }
+    
 }

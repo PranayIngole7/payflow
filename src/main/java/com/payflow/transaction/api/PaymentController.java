@@ -6,6 +6,7 @@ import com.payflow.transaction.application.GetPaymentHistoryUseCase;
 import com.payflow.transaction.domain.Payment;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.net.URI;
 import java.util.List;
@@ -29,7 +30,7 @@ public class PaymentController {
     @PostMapping
     public ResponseEntity<PaymentResponse> createPayment(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestBody CreatePaymentRequest request
+            @Valid @RequestBody CreatePaymentRequest request
     ) {
         Payment payment =
                 createPaymentUseCase.execute(
@@ -48,7 +49,7 @@ public class PaymentController {
                 )
                 .body(response);
     }
-
+    
     @GetMapping
     public ResponseEntity<List<PaymentResponse>> getPaymentHistory(
             @RequestParam UUID accountId
