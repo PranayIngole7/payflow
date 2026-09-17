@@ -1,0 +1,297 @@
+package com.payflow.ledger.infrastructure.persistence;
+
+import com.payflow.account.domain.AccountStatus;
+import com.payflow.account.infrastructure.persistence.AccountEntity;
+import com.payflow.account.infrastructure.persistence.SpringDataAccountRepository;
+import com.payflow.ledger.domain.LedgerEntryType;
+import com.payflow.shared.domain.Currency;
+import com.payflow.transaction.api.InitiateTransferRequest;
+import com.payflow.transaction.api.InitiateTransferResponse;
+import com.payflow.transaction.domain.TransactionStatus;
+import com.payflow.transaction.infrastructure.persistence.SpringDataIdempotencyKeyRepository;
+import com.payflow.transaction.infrastructure.persistence.SpringDataPaymentRepository;
+import com.payflow.transaction.infrastructure.persistence.SpringDataTransactionRepository;
+import com.payflow.wallet.infrastructure.persistence.SpringDataWalletRepository;
+import com.payflow.wallet.infrastructure.persistence.WalletEntity;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+                "spring.config.name=application",
+                "spring.profiles.active=postgres"
+        }
+)
+@AutoConfigureTestRestTemplate
+class LedgerRepositoryPostgresIntegrationTest {
+
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Autowired
+    private SpringDataAccountRepository accountRepository;
+
+    @Autowired
+    private SpringDataWalletRepository walletRepository;
+
+    @Autowired
+    private SpringDataTransactionRepository transactionRepository;
+
+    @Autowired
+    private SpringDataLedgerEntryRepository ledgerEntryRepository;
+
+    @Autowired
+    private SpringDataPaymentRepository paymentRepository;
+
+    @Autowired
+    private SpringDataIdempotencyKeyRepository idempotencyKeyRepository;
+
+    private UUID sourceWalletId;
+    private UUID destinationWalletId;
+
+    @BeforeEach
+    void setUp() {
+
+        ledgerEntryRepository.deleteAll();
+        idempotencyKeyRepository.deleteAll();
+        transactionRepository.deleteAll();
+        paymentRepository.deleteAll();
+        walletRepository.deleteAll();
+        accountRepository.deleteAll();
+
+        UUID sourceAccountId = UUID.randomUUID();
+        UUID destinationAccountId = UUID.randomUUID();
+
+        Instant createdAt = Instant.now();
+
+        AccountEntity sourceAccount =
+                new AccountEntity(
+                        sourceAccountId,
+                        "ledger-source-" + UUID.randomUUID() + "@example.com",
+                        "Source",
+                        "Account",
+                        "UNUSED",
+                        AccountStatus.ACTIVE,
+                        createdAt,
+                        createdAt
+                );
+
+        AccountEntity destinationAccount =
+                new AccountEntity(
+                        destinationAccountId,
+                        "ledger-destination-" + UUID.randomUUID() + "@example.com",
+                        "Destination",
+                        "Account",
+                        "UNUSED",
+                        AccountStatus.ACTIVE,
+                        createdAt,
+                        createdAt
+                );
+
+        accountRepository.save(sourceAccount);
+        accountRepository.save(destinationAccount);
+
+        sourceWalletId = UUID.randomUUID();
+        destinationWalletId = UUID.randomUUID();
+
+        walletRepository.save(
+                new WalletEntity(
+                        sourceWalletId,
+                        sourceAccount.getId(),
+                        Currency.INR,
+                        new BigDecimal("1000.00")
+                )
+        );
+
+        walletRepository.save(
+                new WalletEntity(
+                        destinationWalletId,
+                        destinationAccount.getId(),
+                        Currency.INR,
+                        new BigDecimal("100.00")
+                )
+        );
+    }
+
+    @Test
+    void shouldPersistLedgerEntriesThroughRealTransferPostingPath() {
+
+        InitiateTransferRequest request =
+                new InitiateTransferRequest(
+                        sourceWalletId,
+                        destinationWalletId,
+                        new BigDecimal("250.00"),
+                        Currency.INR
+                );
+
+        HttpHeaders headers = new HttpHeaders();
+
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(
+                "Idempotency-Key",
+                "ledger-posting-" + UUID.randomUUID()
+        );
+
+        HttpEntity<InitiateTransferRequest> entity =
+                new HttpEntity<>(
+                        request,
+                        headers
+                );
+
+        ResponseEntity<InitiateTransferResponse> response =
+                restTemplate.exchange(
+                        url(),
+                        HttpMethod.POST,
+                        entity,
+                        InitiateTransferResponse.class
+                );
+
+        assertEquals(
+                HttpStatus.CREATED,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        UUID transactionId =
+                response.getBody().transactionId();
+
+        assertNotNull(transactionId);
+
+        // ------------------------------------------------------------
+        // Transaction verification
+        // ------------------------------------------------------------
+
+        var transaction =
+                transactionRepository.findById(transactionId)
+                        .orElseThrow();
+
+        assertEquals(
+                TransactionStatus.COMPLETED,
+                transaction.getStatus()
+        );
+
+        // ------------------------------------------------------------
+        // Ledger verification
+        // ------------------------------------------------------------
+
+        List<LedgerEntryEntity> ledgerEntries =
+                ledgerEntryRepository
+                        .findByTransactionIdOrderByCreatedAtAsc(
+                                transactionId
+                        );
+
+        assertEquals(
+                2,
+                ledgerEntries.size()
+        );
+
+        LedgerEntryEntity debitEntry =
+                ledgerEntries.stream()
+                        .filter(entry ->
+                                entry.getType() == LedgerEntryType.DEBIT
+                        )
+                        .findFirst()
+                        .orElseThrow();
+
+        LedgerEntryEntity creditEntry =
+                ledgerEntries.stream()
+                        .filter(entry ->
+                                entry.getType() == LedgerEntryType.CREDIT
+                        )
+                        .findFirst()
+                        .orElseThrow();
+
+        // ------------------------------------------------------------
+        // Double-entry verification
+        // ------------------------------------------------------------
+
+        assertEquals(
+                new BigDecimal("250.00"),
+                debitEntry.getAmount()
+        );
+
+        assertEquals(
+                new BigDecimal("250.00"),
+                creditEntry.getAmount()
+        );
+
+        assertEquals(
+                transactionId,
+                debitEntry.getTransactionId()
+        );
+
+        assertEquals(
+                transactionId,
+                creditEntry.getTransactionId()
+        );
+
+        assertEquals(
+                sourceWalletId,
+                debitEntry.getLedgerAccountId()
+        );
+
+        assertEquals(
+                destinationWalletId,
+                creditEntry.getLedgerAccountId()
+        );
+
+        assertEquals(
+                "WALLET",
+                debitEntry.getAccountType().name()
+        );
+
+        assertEquals(
+                "WALLET",
+                creditEntry.getAccountType().name()
+        );
+
+        // ------------------------------------------------------------
+        // Wallet balance verification
+        // ------------------------------------------------------------
+
+        WalletEntity persistedSourceWallet =
+                walletRepository.findById(sourceWalletId)
+                        .orElseThrow();
+
+        WalletEntity persistedDestinationWallet =
+                walletRepository.findById(destinationWalletId)
+                        .orElseThrow();
+
+        assertEquals(
+                new BigDecimal("750.00"),
+                persistedSourceWallet.getBalance()
+        );
+
+        assertEquals(
+                new BigDecimal("350.00"),
+                persistedDestinationWallet.getBalance()
+        );
+    }
+
+    private String url() {
+        return "http://localhost:" + port + "/api/v1/transfers";
+    }
+}

@@ -3,12 +3,11 @@ package com.payflow.ledger.infrastructure.persistence;
 import com.payflow.ledger.application.LedgerRepository;
 import com.payflow.ledger.domain.Ledger;
 import com.payflow.ledger.domain.LedgerAccountId;
-import com.payflow.ledger.domain.LedgerAccountType;
 import com.payflow.ledger.domain.LedgerEntry;
 import com.payflow.ledger.domain.LedgerEntryId;
-import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.shared.domain.Money;
 import com.payflow.transaction.domain.TransactionId;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -18,11 +17,14 @@ import java.util.Optional;
 public class LedgerRepositoryAdapter implements LedgerRepository {
 
     private final SpringDataLedgerEntryRepository repository;
+    private final EntityManager entityManager;
 
     public LedgerRepositoryAdapter(
-            SpringDataLedgerEntryRepository repository
+            SpringDataLedgerEntryRepository repository,
+            EntityManager entityManager
     ) {
         this.repository = repository;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -50,7 +52,7 @@ public class LedgerRepositoryAdapter implements LedgerRepository {
     @Override
     public void save(Ledger ledger) {
         for (LedgerEntry entry : ledger.entries()) {
-            repository.save(toEntity(entry));
+            entityManager.persist(toEntity(entry));
         }
     }
 
