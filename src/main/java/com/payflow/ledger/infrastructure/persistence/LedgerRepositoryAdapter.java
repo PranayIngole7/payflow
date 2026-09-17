@@ -3,6 +3,7 @@ package com.payflow.ledger.infrastructure.persistence;
 import com.payflow.ledger.application.LedgerRepository;
 import com.payflow.ledger.domain.Ledger;
 import com.payflow.ledger.domain.LedgerAccountId;
+import com.payflow.ledger.domain.LedgerAccountType;
 import com.payflow.ledger.domain.LedgerEntry;
 import com.payflow.ledger.domain.LedgerEntryId;
 import com.payflow.shared.domain.Money;
@@ -47,6 +48,20 @@ public class LedgerRepositoryAdapter implements LedgerRepository {
         return Optional.of(
                 Ledger.reconstitute(transactionId, entries)
         );
+    }
+
+    @Override
+    public List<LedgerEntry> findByAccountId(
+            LedgerAccountId ledgerAccountId
+    ) {
+        return repository
+                .findByLedgerAccountIdAndAccountTypeOrderByCreatedAtAsc(
+                        ledgerAccountId.value(),
+                        LedgerAccountType.WALLET
+                )
+                .stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     @Override
