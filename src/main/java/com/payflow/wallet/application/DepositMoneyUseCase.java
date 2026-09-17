@@ -2,6 +2,8 @@ package com.payflow.wallet.application;
 
 import com.payflow.ledger.application.LedgerRepository;
 import com.payflow.ledger.domain.Ledger;
+import com.payflow.ledger.domain.LedgerAccountId;
+import com.payflow.ledger.domain.LedgerAccountType;
 import com.payflow.ledger.domain.LedgerEntry;
 import com.payflow.ledger.domain.LedgerEntryId;
 import com.payflow.ledger.domain.LedgerEntryType;
@@ -85,16 +87,37 @@ public final class DepositMoneyUseCase {
                     .findByTransactionId(transaction.id())
                     .orElseGet(Ledger::create);
 
-            LedgerEntry ledgerEntry = LedgerEntry.create(
-                    LedgerEntryId.generate(),
-                    transaction.id(),
-                    walletId,
-                    money,
-                    LedgerEntryType.CREDIT,
-                    Instant.now()
+            Instant now = Instant.now();
+
+            ledger.add(
+                    LedgerEntry.create(
+                            LedgerEntryId.generate(),
+                            transaction.id(),
+                            LedgerAccountId.externalFunding(),
+                            LedgerAccountType.EXTERNAL_FUNDING,
+                            money,
+                            LedgerEntryType.DEBIT,
+                            now
+                    )
             );
 
-            ledger.add(ledgerEntry);
+            ledger.add(
+                    LedgerEntry.create(
+                            LedgerEntryId.generate(),
+                            transaction.id(),
+                            LedgerAccountId.forWallet(wallet.id()),
+                            LedgerAccountType.WALLET,
+                            money,
+                            LedgerEntryType.CREDIT,
+                            now
+                    )
+            );
+
+            if (!ledger.isBalanced()) {
+                throw new IllegalStateException(
+                        "ledger must be balanced before completing deposit"
+                );
+            }
 
             transactionRepository.save(transaction);
             walletRepository.save(wallet);

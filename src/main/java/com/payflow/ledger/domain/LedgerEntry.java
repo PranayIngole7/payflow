@@ -3,7 +3,6 @@ package com.payflow.ledger.domain;
 import com.payflow.shared.domain.Currency;
 import com.payflow.shared.domain.Money;
 import com.payflow.transaction.domain.TransactionId;
-import com.payflow.wallet.domain.WalletId;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -19,7 +18,8 @@ public final class LedgerEntry {
 
     private final LedgerEntryId id;
     private final TransactionId transactionId;
-    private final WalletId walletId;
+    private final LedgerAccountId ledgerAccountId;
+    private final LedgerAccountType accountType;
     private final Money amount;
     private final LedgerEntryType type;
     private final Instant createdAt;
@@ -27,7 +27,8 @@ public final class LedgerEntry {
     private LedgerEntry(
             LedgerEntryId id,
             TransactionId transactionId,
-            WalletId walletId,
+            LedgerAccountId ledgerAccountId,
+            LedgerAccountType accountType,
             Money amount,
             LedgerEntryType type,
             Instant createdAt
@@ -40,9 +41,13 @@ public final class LedgerEntry {
                 transactionId,
                 "transaction id must not be null"
         );
-        this.walletId = Objects.requireNonNull(
-                walletId,
-                "wallet id must not be null"
+        this.ledgerAccountId = Objects.requireNonNull(
+                ledgerAccountId,
+                "ledger account id must not be null"
+        );
+        this.accountType = Objects.requireNonNull(
+                accountType,
+                "ledger account type must not be null"
         );
         this.amount = Objects.requireNonNull(
                 amount,
@@ -70,7 +75,8 @@ public final class LedgerEntry {
     public static LedgerEntry create(
             LedgerEntryId id,
             TransactionId transactionId,
-            WalletId walletId,
+            LedgerAccountId ledgerAccountId,
+            LedgerAccountType accountType,
             Money amount,
             LedgerEntryType type,
             Instant createdAt
@@ -78,7 +84,8 @@ public final class LedgerEntry {
         return new LedgerEntry(
                 id,
                 transactionId,
-                walletId,
+                ledgerAccountId,
+                accountType,
                 amount,
                 type,
                 createdAt
@@ -93,8 +100,12 @@ public final class LedgerEntry {
         return transactionId;
     }
 
-    public WalletId walletId() {
-        return walletId;
+    public LedgerAccountId ledgerAccountId() {
+        return ledgerAccountId;
+    }
+
+    public LedgerAccountType accountType() {
+        return accountType;
     }
 
     public Money amount() {

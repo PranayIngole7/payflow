@@ -2,12 +2,13 @@ package com.payflow.ledger.infrastructure.persistence;
 
 import com.payflow.ledger.application.LedgerRepository;
 import com.payflow.ledger.domain.Ledger;
+import com.payflow.ledger.domain.LedgerAccountId;
+import com.payflow.ledger.domain.LedgerAccountType;
 import com.payflow.ledger.domain.LedgerEntry;
 import com.payflow.ledger.domain.LedgerEntryId;
 import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.shared.domain.Money;
 import com.payflow.transaction.domain.TransactionId;
-import com.payflow.wallet.domain.WalletId;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -57,7 +58,8 @@ public class LedgerRepositoryAdapter implements LedgerRepository {
         return LedgerEntry.create(
                 new LedgerEntryId(entity.getId()),
                 new TransactionId(entity.getTransactionId()),
-                new WalletId(entity.getWalletId()),
+                new LedgerAccountId(entity.getLedgerAccountId()),
+                entity.getAccountType(),
                 new Money(
                         entity.getAmount(),
                         entity.getCurrency()
@@ -71,7 +73,8 @@ public class LedgerRepositoryAdapter implements LedgerRepository {
         return new LedgerEntryEntity(
                 entry.id().value(),
                 entry.transactionId().value(),
-                entry.walletId().value(),
+                entry.ledgerAccountId().value(),
+                entry.accountType(),
                 entry.amount().amount(),
                 entry.currency(),
                 entry.type(),

@@ -78,12 +78,12 @@ public final class Ledger {
     }
 
     /**
-     * Creates a balanced ledger for a transaction.
+     * Creates a balanced ledger for a transfer transaction.
      *
      * <p>The source wallet receives a debit entry and the destination wallet
      * receives a credit entry for the same amount.</p>
      *
-     * @param transaction transaction to represent in the ledger
+     * @param transaction transfer transaction to represent in the ledger
      * @return a balanced ledger containing exactly two entries
      */
     public static Ledger from(Transaction transaction) {
@@ -99,7 +99,8 @@ public final class Ledger {
         LedgerEntry debit = LedgerEntry.create(
                 LedgerEntryId.generate(),
                 transaction.id(),
-                transaction.sourceWalletId(),
+                LedgerAccountId.forWallet(transaction.sourceWalletId()),
+                LedgerAccountType.WALLET,
                 transaction.amount(),
                 LedgerEntryType.DEBIT,
                 now
@@ -108,7 +109,8 @@ public final class Ledger {
         LedgerEntry credit = LedgerEntry.create(
                 LedgerEntryId.generate(),
                 transaction.id(),
-                transaction.destinationWalletId(),
+                LedgerAccountId.forWallet(transaction.destinationWalletId()),
+                LedgerAccountType.WALLET,
                 transaction.amount(),
                 LedgerEntryType.CREDIT,
                 now

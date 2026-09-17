@@ -1,5 +1,6 @@
 package com.payflow.ledger.infrastructure.persistence;
 
+import com.payflow.ledger.domain.LedgerAccountType;
 import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.shared.domain.Currency;
 import jakarta.persistence.*;
@@ -21,8 +22,12 @@ public class LedgerEntryEntity {
     @Column(name = "transaction_id", nullable = false)
     private UUID transactionId;
 
-    @Column(name = "wallet_id", nullable = false)
-    private UUID walletId;
+    @Column(name = "ledger_account_id", nullable = false)
+    private UUID ledgerAccountId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_type", nullable = false, length = 30)
+    private LedgerAccountType accountType;
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
@@ -45,7 +50,8 @@ public class LedgerEntryEntity {
     public LedgerEntryEntity(
             UUID id,
             UUID transactionId,
-            UUID walletId,
+            UUID ledgerAccountId,
+            LedgerAccountType accountType,
             BigDecimal amount,
             Currency currency,
             LedgerEntryType type,
@@ -53,7 +59,8 @@ public class LedgerEntryEntity {
     ) {
         this.id = id;
         this.transactionId = transactionId;
-        this.walletId = walletId;
+        this.ledgerAccountId = ledgerAccountId;
+        this.accountType = accountType;
         this.amount = amount;
         this.currency = currency;
         this.type = type;
@@ -68,8 +75,12 @@ public class LedgerEntryEntity {
         return transactionId;
     }
 
-    public UUID getWalletId() {
-        return walletId;
+    public UUID getLedgerAccountId() {
+        return ledgerAccountId;
+    }
+
+    public LedgerAccountType getAccountType() {
+        return accountType;
     }
 
     public BigDecimal getAmount() {

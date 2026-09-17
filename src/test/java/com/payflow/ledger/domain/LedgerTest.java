@@ -94,7 +94,8 @@ class LedgerTest {
         LedgerEntry debit = LedgerEntry.create(
                 LedgerEntryId.generate(),
                 transactionId,
-                WalletId.generate(),
+                LedgerAccountId.forWallet(WalletId.generate()),
+                LedgerAccountType.WALLET,
                 new Money(
                         new BigDecimal("500.00"),
                         Currency.INR
@@ -106,7 +107,8 @@ class LedgerTest {
         LedgerEntry credit = LedgerEntry.create(
                 LedgerEntryId.generate(),
                 transactionId,
-                WalletId.generate(),
+                LedgerAccountId.forWallet(WalletId.generate()),
+                LedgerAccountType.WALLET,
                 new Money(
                         new BigDecimal("300.00"),
                         Currency.INR
@@ -154,7 +156,8 @@ class LedgerTest {
         LedgerEntry debit = LedgerEntry.create(
                 LedgerEntryId.generate(),
                 transactionId,
-                WalletId.generate(),
+                LedgerAccountId.forWallet(WalletId.generate()),
+                LedgerAccountType.WALLET,
                 new Money(
                         new BigDecimal("500.00"),
                         Currency.INR
@@ -166,7 +169,8 @@ class LedgerTest {
         LedgerEntry credit = LedgerEntry.create(
                 LedgerEntryId.generate(),
                 transactionId,
-                WalletId.generate(),
+                LedgerAccountId.forWallet(WalletId.generate()),
+                LedgerAccountType.WALLET,
                 new Money(
                         new BigDecimal("500.00"),
                         Currency.USD
@@ -244,8 +248,8 @@ class LedgerTest {
                 .orElseThrow();
 
         assertEquals(
-                transaction.sourceWalletId(),
-                debit.walletId()
+                LedgerAccountId.forWallet(transaction.sourceWalletId()),
+                debit.ledgerAccountId()
         );
 
         assertEquals(
@@ -267,8 +271,8 @@ class LedgerTest {
                 .orElseThrow();
 
         assertEquals(
-                transaction.destinationWalletId(),
-                credit.walletId()
+                LedgerAccountId.forWallet(transaction.destinationWalletId()),
+                credit.ledgerAccountId()
         );
 
         assertEquals(
@@ -408,7 +412,8 @@ class LedgerTest {
         return LedgerEntry.create(
                 LedgerEntryId.generate(),
                 transactionId,
-                WalletId.generate(),
+                LedgerAccountId.forWallet(WalletId.generate()),
+                LedgerAccountType.WALLET,
                 new Money(
                         new BigDecimal("500.00"),
                         Currency.INR
@@ -426,7 +431,8 @@ class LedgerTest {
         return LedgerEntry.create(
                 LedgerEntryId.generate(),
                 transactionId,
-                WalletId.generate(),
+                LedgerAccountId.forWallet(WalletId.generate()),
+                LedgerAccountType.WALLET,
                 new Money(
                         new BigDecimal("500.00"),
                         Currency.INR

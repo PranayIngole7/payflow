@@ -1,6 +1,7 @@
 package com.payflow.transaction.application;
 
 import com.payflow.account.domain.AccountId;
+import com.payflow.ledger.domain.LedgerAccountId;
 import com.payflow.ledger.application.LedgerRepository;
 import com.payflow.ledger.domain.Ledger;
 import com.payflow.ledger.domain.LedgerEntry;
@@ -390,13 +391,13 @@ class TransferMoneyUseCaseTest {
         );
 
         assertEquals(
-                sourceWalletId,
-                debit.walletId()
+        		LedgerAccountId.forWallet(sourceWalletId),
+        		debit.ledgerAccountId()
         );
-
+        
         assertEquals(
-                destinationWalletId,
-                credit.walletId()
+        		LedgerAccountId.forWallet(destinationWalletId), 
+        		credit.ledgerAccountId()
         );
 
         assertEquals(

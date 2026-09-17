@@ -2,6 +2,8 @@ package com.payflow.transaction.application;
 
 import com.payflow.ledger.application.LedgerRepository;
 import com.payflow.ledger.domain.Ledger;
+import com.payflow.ledger.domain.LedgerAccountId;
+import com.payflow.ledger.domain.LedgerAccountType;
 import com.payflow.ledger.domain.LedgerEntry;
 import com.payflow.ledger.domain.LedgerEntryId;
 import com.payflow.ledger.domain.LedgerEntryType;
@@ -131,7 +133,8 @@ public final class TransferMoneyUseCase {
                 LedgerEntry.create(
                         LedgerEntryId.generate(),
                         transactionId,
-                        sourceWallet.id(),
+                        LedgerAccountId.forWallet(sourceWallet.id()),
+                        LedgerAccountType.WALLET,
                         transaction.amount(),
                         LedgerEntryType.DEBIT,
                         now
@@ -142,7 +145,8 @@ public final class TransferMoneyUseCase {
                 LedgerEntry.create(
                         LedgerEntryId.generate(),
                         transactionId,
-                        destinationWallet.id(),
+                        LedgerAccountId.forWallet(destinationWallet.id()),
+                        LedgerAccountType.WALLET,
                         transaction.amount(),
                         LedgerEntryType.CREDIT,
                         now

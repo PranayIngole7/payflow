@@ -3,6 +3,8 @@ package com.payflow.wallet.application;
 import com.payflow.account.domain.AccountId;
 import com.payflow.ledger.application.LedgerRepository;
 import com.payflow.ledger.domain.Ledger;
+import com.payflow.ledger.domain.LedgerAccountId;
+import com.payflow.ledger.domain.LedgerAccountType;
 import com.payflow.ledger.domain.LedgerEntry;
 import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.shared.application.TransactionRunner;
@@ -209,30 +211,35 @@ class WithdrawMoneyUseCaseTest {
         assertNotNull(ledger);
 
         assertEquals(
-                1,
+                2,
                 ledger.entries().size()
         );
 
-        LedgerEntry entry = ledger.entries().getFirst();
+        LedgerEntry walletEntry = ledger.entries().stream()
+                .filter(entry ->
+                        entry.accountType() == LedgerAccountType.WALLET
+                )
+                .findFirst()
+                .orElseThrow();
 
         assertEquals(
                 LedgerEntryType.DEBIT,
-                entry.type()
+                walletEntry.type()
         );
 
         assertEquals(
-                walletId,
-                entry.walletId()
+                LedgerAccountId.forWallet(walletId),
+                walletEntry.ledgerAccountId()
         );
 
         assertEquals(
                 new BigDecimal("40.00"),
-                entry.amount().amount()
+                walletEntry.amount().amount()
         );
 
         assertEquals(
                 Currency.INR,
-                entry.currency()
+                walletEntry.currency()
         );
     }
 

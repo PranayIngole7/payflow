@@ -17,14 +17,15 @@ class LedgerEntryTest {
     void shouldCreateLedgerEntry() {
         LedgerEntryId id = LedgerEntryId.generate();
         TransactionId transactionId = TransactionId.generate();
-        WalletId walletId = WalletId.generate();
+        LedgerAccountId ledgerAccountId = LedgerAccountId.forWallet(WalletId.generate());
         Money amount = new Money(new BigDecimal("100.00"), Currency.INR);
         Instant createdAt = Instant.now();
 
         LedgerEntry entry = LedgerEntry.create(
                 id,
                 transactionId,
-                walletId,
+                ledgerAccountId,
+                LedgerAccountType.WALLET,
                 amount,
                 LedgerEntryType.CREDIT,
                 createdAt
@@ -32,7 +33,8 @@ class LedgerEntryTest {
 
         assertEquals(id, entry.id());
         assertEquals(transactionId, entry.transactionId());
-        assertEquals(walletId, entry.walletId());
+        assertEquals(ledgerAccountId, entry.ledgerAccountId());
+        assertEquals(LedgerAccountType.WALLET, entry.accountType());
         assertEquals(amount, entry.amount());
         assertEquals(Currency.INR, entry.currency());
         assertEquals(LedgerEntryType.CREDIT, entry.type());
@@ -46,7 +48,8 @@ class LedgerEntryTest {
                 () -> LedgerEntry.create(
                         null,
                         TransactionId.generate(),
-                        WalletId.generate(),
+                        LedgerAccountId.forWallet(WalletId.generate()),
+                        LedgerAccountType.WALLET,
                         money("100.00"),
                         LedgerEntryType.CREDIT,
                         Instant.now()
@@ -61,7 +64,8 @@ class LedgerEntryTest {
                 () -> LedgerEntry.create(
                         LedgerEntryId.generate(),
                         null,
-                        WalletId.generate(),
+                        LedgerAccountId.forWallet(WalletId.generate()),
+                        LedgerAccountType.WALLET,
                         money("100.00"),
                         LedgerEntryType.CREDIT,
                         Instant.now()
@@ -70,12 +74,29 @@ class LedgerEntryTest {
     }
 
     @Test
-    void shouldRejectNullWalletId() {
+    void shouldRejectNullLedgerAccountId() {
         assertThrows(
                 NullPointerException.class,
                 () -> LedgerEntry.create(
                         LedgerEntryId.generate(),
                         TransactionId.generate(),
+                        null,
+                        LedgerAccountType.WALLET,
+                        money("100.00"),
+                        LedgerEntryType.CREDIT,
+                        Instant.now()
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectNullLedgerAccountType() {
+        assertThrows(
+                NullPointerException.class,
+                () -> LedgerEntry.create(
+                        LedgerEntryId.generate(),
+                        TransactionId.generate(),
+                        LedgerAccountId.forWallet(WalletId.generate()),
                         null,
                         money("100.00"),
                         LedgerEntryType.CREDIT,
@@ -91,7 +112,8 @@ class LedgerEntryTest {
                 () -> LedgerEntry.create(
                         LedgerEntryId.generate(),
                         TransactionId.generate(),
-                        WalletId.generate(),
+                        LedgerAccountId.forWallet(WalletId.generate()),
+                        LedgerAccountType.WALLET,
                         null,
                         LedgerEntryType.CREDIT,
                         Instant.now()
@@ -106,7 +128,8 @@ class LedgerEntryTest {
                 () -> LedgerEntry.create(
                         LedgerEntryId.generate(),
                         TransactionId.generate(),
-                        WalletId.generate(),
+                        LedgerAccountId.forWallet(WalletId.generate()),
+                        LedgerAccountType.WALLET,
                         money("100.00"),
                         null,
                         Instant.now()
@@ -121,7 +144,8 @@ class LedgerEntryTest {
                 () -> LedgerEntry.create(
                         LedgerEntryId.generate(),
                         TransactionId.generate(),
-                        WalletId.generate(),
+                        LedgerAccountId.forWallet(WalletId.generate()),
+                        LedgerAccountType.WALLET,
                         money("100.00"),
                         LedgerEntryType.CREDIT,
                         null
@@ -136,7 +160,8 @@ class LedgerEntryTest {
                 () -> LedgerEntry.create(
                         LedgerEntryId.generate(),
                         TransactionId.generate(),
-                        WalletId.generate(),
+                        LedgerAccountId.forWallet(WalletId.generate()),
+                        LedgerAccountType.WALLET,
                         money("0.00"),
                         LedgerEntryType.CREDIT,
                         Instant.now()
@@ -151,7 +176,8 @@ class LedgerEntryTest {
                 () -> LedgerEntry.create(
                         LedgerEntryId.generate(),
                         TransactionId.generate(),
-                        WalletId.generate(),
+                        LedgerAccountId.forWallet(WalletId.generate()),
+                        LedgerAccountType.WALLET,
                         money("-10.00"),
                         LedgerEntryType.CREDIT,
                         Instant.now()
@@ -164,7 +190,8 @@ class LedgerEntryTest {
         LedgerEntry entry = LedgerEntry.create(
                 LedgerEntryId.generate(),
                 TransactionId.generate(),
-                WalletId.generate(),
+                LedgerAccountId.forWallet(WalletId.generate()),
+                LedgerAccountType.WALLET,
                 money("100.00"),
                 LedgerEntryType.DEBIT,
                 Instant.now()
@@ -178,13 +205,50 @@ class LedgerEntryTest {
         LedgerEntry entry = LedgerEntry.create(
                 LedgerEntryId.generate(),
                 TransactionId.generate(),
-                WalletId.generate(),
+                LedgerAccountId.forWallet(WalletId.generate()),
+                LedgerAccountType.WALLET,
                 money("100.00"),
                 LedgerEntryType.CREDIT,
                 Instant.now()
         );
 
         assertEquals(LedgerEntryType.CREDIT, entry.type());
+    }
+
+    @Test
+    void shouldSupportExternalFundingAccount() {
+        LedgerEntry entry = LedgerEntry.create(
+                LedgerEntryId.generate(),
+                TransactionId.generate(),
+                LedgerAccountId.externalFunding(),
+                LedgerAccountType.EXTERNAL_FUNDING,
+                money("1000.00"),
+                LedgerEntryType.DEBIT,
+                Instant.now()
+        );
+
+        assertEquals(
+                LedgerAccountType.EXTERNAL_FUNDING,
+                entry.accountType()
+        );
+    }
+
+    @Test
+    void shouldSupportExternalSettlementAccount() {
+        LedgerEntry entry = LedgerEntry.create(
+                LedgerEntryId.generate(),
+                TransactionId.generate(),
+                LedgerAccountId.externalSettlement(),
+                LedgerAccountType.EXTERNAL_SETTLEMENT,
+                money("500.00"),
+                LedgerEntryType.CREDIT,
+                Instant.now()
+        );
+
+        assertEquals(
+                LedgerAccountType.EXTERNAL_SETTLEMENT,
+                entry.accountType()
+        );
     }
 
     private Money money(String amount) {

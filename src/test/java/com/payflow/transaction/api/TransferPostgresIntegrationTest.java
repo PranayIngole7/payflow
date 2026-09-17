@@ -263,12 +263,12 @@ class TransferPostgresIntegrationTest {
 
         assertEquals(
                 sourceWalletId,
-                debitEntry.getWalletId()
+                debitEntry.getLedgerAccountId()
         );
 
         assertEquals(
                 destinationWalletId,
-                creditEntry.getWalletId()
+                creditEntry.getLedgerAccountId()
         );
 
         assertEquals(

@@ -3,6 +3,7 @@ package com.payflow.wallet.infrastructure;
 import com.payflow.account.domain.AccountStatus;
 import com.payflow.account.infrastructure.persistence.AccountEntity;
 import com.payflow.account.infrastructure.persistence.SpringDataAccountRepository;
+import com.payflow.ledger.domain.LedgerAccountId;
 import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.ledger.infrastructure.persistence.LedgerEntryEntity;
 import com.payflow.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
@@ -212,12 +213,13 @@ class WithdrawPostgresIntegrationTest {
                         );
 
         assertEquals(
-                1,
+                2,
                 ledgerEntries.size()
         );
 
+        // Wallet account -> DEBIT
         LedgerEntryEntity debitEntry =
-                ledgerEntries.getFirst();
+                ledgerEntries.get(0);
 
         assertEquals(
                 LedgerEntryType.DEBIT,
@@ -226,7 +228,7 @@ class WithdrawPostgresIntegrationTest {
 
         assertEquals(
                 walletId,
-                debitEntry.getWalletId()
+                debitEntry.getLedgerAccountId()
         );
 
         assertEquals(
@@ -243,6 +245,35 @@ class WithdrawPostgresIntegrationTest {
                 transaction.getId(),
                 debitEntry.getTransactionId()
         );
+
+        // External settlement account -> CREDIT
+        LedgerEntryEntity creditEntry =
+                ledgerEntries.get(1);
+
+        assertEquals(
+                LedgerEntryType.CREDIT,
+                creditEntry.getType()
+        );
+
+        assertEquals(
+                LedgerAccountId.externalSettlement().value(),
+                creditEntry.getLedgerAccountId()
+        );
+
+        assertEquals(
+                new BigDecimal("40.00"),
+                creditEntry.getAmount()
+        );
+
+        assertEquals(
+                Currency.INR,
+                creditEntry.getCurrency()
+        );
+
+        assertEquals(
+                transaction.getId(),
+                creditEntry.getTransactionId()
+        );
     }
 
     private String url() {
@@ -252,3 +283,4 @@ class WithdrawPostgresIntegrationTest {
                 + "/withdrawals";
     }
 }
+

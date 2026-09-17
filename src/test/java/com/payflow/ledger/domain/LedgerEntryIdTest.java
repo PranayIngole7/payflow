@@ -16,6 +16,8 @@ class LedgerEntryIdTest {
     private final LedgerEntryId ledgerEntryId = LedgerEntryId.generate();
     private final TransactionId transactionId = TransactionId.generate();
     private final WalletId walletId = WalletId.generate();
+    private final LedgerAccountId ledgerAccountId =
+            LedgerAccountId.forWallet(walletId);
     private final Instant createdAt = Instant.now();
 
     @Test
@@ -28,7 +30,8 @@ class LedgerEntryIdTest {
         LedgerEntry entry = LedgerEntry.create(
                 ledgerEntryId,
                 transactionId,
-                walletId,
+                ledgerAccountId,
+                LedgerAccountType.WALLET,
                 amount,
                 LedgerEntryType.CREDIT,
                 createdAt
@@ -36,7 +39,8 @@ class LedgerEntryIdTest {
 
         assertEquals(ledgerEntryId, entry.id());
         assertEquals(transactionId, entry.transactionId());
-        assertEquals(walletId, entry.walletId());
+        assertEquals(ledgerAccountId, entry.ledgerAccountId());
+        assertEquals(LedgerAccountType.WALLET, entry.accountType());
         assertEquals(amount, entry.amount());
         assertEquals(Currency.INR, entry.currency());
         assertEquals(LedgerEntryType.CREDIT, entry.type());
@@ -48,7 +52,8 @@ class LedgerEntryIdTest {
         LedgerEntry entry = LedgerEntry.create(
                 ledgerEntryId,
                 transactionId,
-                walletId,
+                ledgerAccountId,
+                LedgerAccountType.WALLET,
                 new Money(
                         new BigDecimal("250.00"),
                         Currency.INR
@@ -71,7 +76,8 @@ class LedgerEntryIdTest {
                 () -> LedgerEntry.create(
                         ledgerEntryId,
                         transactionId,
-                        walletId,
+                        ledgerAccountId,
+                        LedgerAccountType.WALLET,
                         new Money(BigDecimal.ZERO, Currency.INR),
                         LedgerEntryType.CREDIT,
                         createdAt
@@ -86,7 +92,8 @@ class LedgerEntryIdTest {
                 () -> LedgerEntry.create(
                         ledgerEntryId,
                         transactionId,
-                        walletId,
+                        ledgerAccountId,
+                        LedgerAccountType.WALLET,
                         new Money(
                                 new BigDecimal("-100.00"),
                                 Currency.INR
@@ -104,7 +111,8 @@ class LedgerEntryIdTest {
                 () -> LedgerEntry.create(
                         null,
                         transactionId,
-                        walletId,
+                        ledgerAccountId,
+                        LedgerAccountType.WALLET,
                         new Money(
                                 new BigDecimal("100.00"),
                                 Currency.INR
@@ -122,7 +130,8 @@ class LedgerEntryIdTest {
                 () -> LedgerEntry.create(
                         ledgerEntryId,
                         null,
-                        walletId,
+                        ledgerAccountId,
+                        LedgerAccountType.WALLET,
                         new Money(
                                 new BigDecimal("100.00"),
                                 Currency.INR
@@ -134,12 +143,32 @@ class LedgerEntryIdTest {
     }
 
     @Test
-    void shouldRejectNullWalletId() {
+    void shouldRejectNullLedgerAccountId() {
         assertThrows(
                 NullPointerException.class,
                 () -> LedgerEntry.create(
                         ledgerEntryId,
                         transactionId,
+                        null,
+                        LedgerAccountType.WALLET,
+                        new Money(
+                                new BigDecimal("100.00"),
+                                Currency.INR
+                        ),
+                        LedgerEntryType.CREDIT,
+                        createdAt
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectNullAccountType() {
+        assertThrows(
+                NullPointerException.class,
+                () -> LedgerEntry.create(
+                        ledgerEntryId,
+                        transactionId,
+                        ledgerAccountId,
                         null,
                         new Money(
                                 new BigDecimal("100.00"),
@@ -158,7 +187,8 @@ class LedgerEntryIdTest {
                 () -> LedgerEntry.create(
                         ledgerEntryId,
                         transactionId,
-                        walletId,
+                        ledgerAccountId,
+                        LedgerAccountType.WALLET,
                         null,
                         LedgerEntryType.CREDIT,
                         createdAt
@@ -173,7 +203,8 @@ class LedgerEntryIdTest {
                 () -> LedgerEntry.create(
                         ledgerEntryId,
                         transactionId,
-                        walletId,
+                        ledgerAccountId,
+                        LedgerAccountType.WALLET,
                         new Money(
                                 new BigDecimal("100.00"),
                                 Currency.INR
@@ -191,7 +222,8 @@ class LedgerEntryIdTest {
                 () -> LedgerEntry.create(
                         ledgerEntryId,
                         transactionId,
-                        walletId,
+                        ledgerAccountId,
+                        LedgerAccountType.WALLET,
                         new Money(
                                 new BigDecimal("100.00"),
                                 Currency.INR
