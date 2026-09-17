@@ -4,6 +4,7 @@ import com.payflow.ledger.domain.LedgerAccountType;
 import com.payflow.ledger.domain.LedgerEntryType;
 import com.payflow.shared.domain.Currency;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -11,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+@Immutable
 @Entity
 @Table(name = "ledger_entries")
 public class LedgerEntryEntity {
