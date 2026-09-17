@@ -28,6 +28,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -74,6 +75,9 @@ class LedgerEntryEntityOrmProtectionTest {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+    
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -83,7 +87,7 @@ class LedgerEntryEntityOrmProtectionTest {
 
     @BeforeEach
     void setUp() {
-        ledgerEntryRepository.deleteAll();
+    	jdbcTemplate.execute("TRUNCATE TABLE ledger_entries");
         idempotencyKeyRepository.deleteAll();
         transactionRepository.deleteAll();
         paymentRepository.deleteAll();

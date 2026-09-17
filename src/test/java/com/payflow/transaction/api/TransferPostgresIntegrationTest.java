@@ -1,6 +1,7 @@
 package com.payflow.transaction.api;
 
 import com.payflow.account.domain.AccountStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import com.payflow.account.infrastructure.persistence.AccountEntity;
 import com.payflow.account.infrastructure.persistence.SpringDataAccountRepository;
 import com.payflow.ledger.domain.LedgerEntryType;
@@ -70,6 +71,9 @@ class TransferPostgresIntegrationTest {
 
     @Autowired
     private SpringDataIdempotencyKeyRepository idempotencyKeyRepository;
+    
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private UUID sourceWalletId;
     private UUID destinationWalletId;
@@ -77,7 +81,7 @@ class TransferPostgresIntegrationTest {
     @BeforeEach
     void setUp() {
 
-        ledgerEntryRepository.deleteAll();
+    	jdbcTemplate.execute("TRUNCATE TABLE ledger_entries");
         idempotencyKeyRepository.deleteAll();
         transactionRepository.deleteAll();
         paymentRepository.deleteAll();

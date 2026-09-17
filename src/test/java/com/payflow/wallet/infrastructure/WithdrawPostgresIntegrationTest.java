@@ -1,6 +1,7 @@
 package com.payflow.wallet.infrastructure;
 
 import com.payflow.account.domain.AccountStatus;
+
 import com.payflow.account.infrastructure.persistence.AccountEntity;
 import com.payflow.account.infrastructure.persistence.SpringDataAccountRepository;
 import com.payflow.ledger.domain.LedgerAccountId;
@@ -30,6 +31,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -71,13 +73,16 @@ class WithdrawPostgresIntegrationTest {
 
     @Autowired
     private SpringDataIdempotencyKeyRepository idempotencyKeyRepository;
+    
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private UUID walletId;
 
     @BeforeEach
     void setUp() {
 
-        ledgerEntryRepository.deleteAll();
+    	jdbcTemplate.execute("TRUNCATE TABLE ledger_entries");
         idempotencyKeyRepository.deleteAll();
         transactionRepository.deleteAll();
         paymentRepository.deleteAll();
