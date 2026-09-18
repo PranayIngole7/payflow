@@ -10,42 +10,38 @@ The project focuses on practical backend engineering for financial systems: wall
 
 ## Current Status
 
-**Phase 10 — Ledger: Complete**
+**Status: Core platform implemented and actively evolving**
 
-The core PayFlow backend has reached the agreed **workable milestone**.
+PayFlow currently provides a working end-to-end financial workflow covering:
 
-The implemented end-to-end financial flow is:
+- Account management
+- Wallet creation and balance operations
+- Payment lifecycle and history
+- Idempotent payment operations
+- Transaction management
+- Double-entry ledger accounting
+- Transactional consistency and rollback
+- Optimistic locking for concurrent wallet updates
+- Input and business validation
+- Payment failure handling
+- PostgreSQL integration
+- Automated test coverage
+- Local development and deployment setup
 
-```text
-Account
-   |
-   v
-Wallet
-   |
-   v
-Payment
-   |
-   v
-Transaction
-   |
-   v
-Ledger
-   |
-   v
-PostgreSQL
-```
+The core Account → Wallet → Payment → Transaction → Ledger → PostgreSQL flow is implemented and tested.
 
-Current regression status:
+### What's Next
 
-```text
-369 tests
-0 failures
-0 errors
-BUILD SUCCESS
-```
+The project will continue to evolve with additional capabilities such as:
 
-Phase 10 completed the ledger as a first-class financial component, including explicit ledger-account ownership, double-entry accounting, immutability, rollback protection, reconciliation, and internal read APIs.
+- Security and authentication/authorization
+- Further observability and operational improvements
+- Additional payment/platform capabilities
+- Advanced event-driven features where justified
+- AI/**RAG** capabilities where they provide meaningful value
+- Further production-oriented hardening
 
+This project is intentionally being developed incrementally, with each major capability designed, implemented, tested, documented, and validated before moving to the next phase.
 ---
 
 ## What PayFlow Demonstrates
