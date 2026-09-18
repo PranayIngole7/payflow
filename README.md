@@ -41,7 +41,6 @@ The project will continue to evolve with additional capabilities such as:
 - AI/**RAG** capabilities where they provide meaningful value
 - Further production-oriented hardening
 
-This project is intentionally being developed incrementally, with each major capability designed, implemented, tested, documented, and validated before moving to the next phase.
 ---
 
 ## What PayFlow Demonstrates
