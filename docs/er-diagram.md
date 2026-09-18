@@ -2,11 +2,11 @@
 
 ## 1. Overview
 
-This document provides the visual representation of the PayFlow Phase 5 database design.
+This document describes the current PayFlow database model after Phase 10.
 
 PayFlow uses PostgreSQL as the authoritative source of truth for financial state.
 
-The database is organized around these major concepts:
+The current model contains:
 
 - **User** — account owner and identity
 - **Role** — authorization role
@@ -17,6 +17,8 @@ The database is organized around these major concepts:
 - **Ledger Entry** — immutable accounting movement
 - **Idempotency Key** — protection against duplicate client requests
 - **Fraud Assessment** — risk analysis associated with a transaction
+
+Phase 10 evolves the ledger from direct wallet ownership to an explicit **ledger account** model.
 
 ---
 
@@ -33,7 +35,7 @@ erDiagram
     ROLES ||--o{ USER_ROLES : assigned_to
 
     WALLETS ||--o{ PAYMENTS : source_or_destination
-    WALLETS ||--o{ LEDGER_ENTRIES : affects
+    WALLETS ||--o{ LEDGER_ENTRIES : represented_by
 
     PAYMENTS ||--o{ PAYMENT_ATTEMPTS : has
     PAYMENTS ||--o| TRANSACTIONS : produces
@@ -114,7 +116,8 @@ erDiagram
     LEDGER_ENTRIES {
         UUID id PK
         UUID transaction_id FK
-        UUID wallet_id FK
+        UUID ledger_account_id
+        VARCHAR ledger_account_type
         VARCHAR entry_type
         NUMERIC amount
         CHAR currency
@@ -143,9 +146,47 @@ erDiagram
     }
 ```
 
+> **Note:** `ledger_entries.ledger_account_id` is a logical accounting-account identifier. Wallet ledger accounts use the corresponding wallet UUID, while external funding/settlement accounts use stable predefined identifiers. `ledger_account_type` identifies the account category.
+
 ---
 
-# 3. Relationship Explanation
+# 3. Relationship Summary
+
+```text
+User
+ |
+ +---- 1:1 ---- Wallet
+ |
+ +---- 1:N ---- Payment
+ |
+ +---- 1:N ---- Idempotency Key
+ |
+ +---- M:N ---- Role
+              via User Role
+
+Wallet
+ |
+ +---- 1:N ---- Payment participation
+ |
+ +---- 1:N ---- Ledger Entries
+       (through ledger account identity)
+
+Payment
+ |
+ +---- 1:N ---- Payment Attempt
+ |
+ +---- 1:0..1 ---- Transaction
+
+Transaction
+ |
+ +---- 1:N ---- Ledger Entry
+ |
+ +---- 1:0..1 ---- Fraud Assessment
+```
+
+---
+
+# 4. User and Authorization Model
 
 ## User → Wallet
 
@@ -155,13 +196,7 @@ User 1 ---- 1 Wallet
 
 In the MVP, each user owns one wallet.
 
-The database enforces this through:
-
-```text
-UNIQUE(wallets.user_id)
-```
-
-The relationship represents ownership of the user's operational wallet.
+The database enforces unique wallet ownership through the unique `wallets.user_id` constraint.
 
 ---
 
@@ -171,18 +206,9 @@ The relationship represents ownership of the user's operational wallet.
 User 1 ---- N Payments
 ```
 
-A user can initiate many payments.
+A user can initiate multiple payments.
 
-For example:
-
-```text
-User A
- ├── Payment P001
- ├── Payment P002
- └── Payment P003
-```
-
-The payment stores the user responsible for initiating the operation.
+The payment stores the user responsible for the business operation.
 
 ---
 
@@ -192,68 +218,78 @@ The payment stores the user responsible for initiating the operation.
 User M ---- N Role
 ```
 
-A user can have multiple roles, and a role can belong to multiple users.
-
-The relationship is implemented through:
+The many-to-many relationship is implemented through:
 
 ```text
 USER_ROLES
 ```
 
-Example:
-
-```text
-User
- ├── CUSTOMER
- └── SUPPORT
-```
-
-The primary key is:
+with:
 
 ```text
 (user_id, role_id)
 ```
 
-which prevents duplicate role assignments.
+as the composite primary key.
 
 ---
 
-# 4. Wallet → Payment
+# 5. Wallet and Payment Model
 
-A wallet can participate in many payments.
+A wallet can participate in multiple payments.
 
-A payment can reference:
+A payment can contain:
 
 ```text
 source_wallet_id
 destination_wallet_id
 ```
 
-For example:
+The application determines which fields are valid for each payment type.
+
+### Transfer
 
 ```text
 Wallet A
    |
    | source
    v
-Payment P001
+Payment
    |
    | destination
    v
 Wallet B
 ```
 
-The same payment table therefore supports:
+### Deposit
 
-- Transfer
-- Deposit
-- Withdrawal
+```text
+External Funding
+       |
+       v
+Payment
+       |
+       v
+Wallet A
+```
 
-The application determines which wallet relationships are valid for each payment type.
+### Withdrawal
+
+```text
+Wallet A
+   |
+   v
+Payment
+   |
+   v
+External Settlement
+```
+
+The external accounts are accounting concepts represented by ledger account identifiers; they are not application wallets.
 
 ---
 
-# 5. Payment → Payment Attempt
+# 6. Payment → Payment Attempt
 
 ```text
 Payment 1 ---- N Payment Attempts
@@ -273,47 +309,42 @@ Attempt 2 -> FAILED
 Attempt 3 -> COMPLETED
 ```
 
-This distinction allows PayFlow to track retries without creating multiple payments for the same logical operation.
-
-The database enforces:
+The database enforces uniqueness of:
 
 ```text
-UNIQUE(payment_id, attempt_number)
+(payment_id, attempt_number)
 ```
 
 ---
 
-# 6. Payment → Transaction
+# 7. Payment → Transaction
 
 ```text
 Payment 1 ---- 0..1 Transaction
 ```
 
-A payment does not necessarily produce a transaction.
+A failed or cancelled payment does not necessarily produce a completed financial transaction.
 
-For example:
+In the MVP, `transactions.payment_id` is unique, so one payment can produce at most one transaction.
 
-```text
-Payment P001 -> FAILED
-                    |
-                    X
-               No transaction
-```
-
-But a successful payment can produce:
+Conceptually:
 
 ```text
-Payment P002
-     |
-     v
-Transaction T002
+Payment
+   |
+   +---- FAILED
+   |       |
+   |       +---- no completed transaction
+   |
+   +---- COMPLETED
+           |
+           v
+       Transaction
 ```
-
-In the MVP, `transactions.payment_id` is UNIQUE, meaning one payment can produce at most one transaction.
 
 ---
 
-# 7. Transaction → Ledger Entries
+# 8. Transaction → Ledger Entries
 
 ```text
 Transaction 1 ---- N Ledger Entries
@@ -333,103 +364,297 @@ Transaction T001
        +---- CREDIT Wallet B  ₹1,000
 ```
 
-The ledger therefore provides the accounting history behind the transaction.
+For a deposit:
+
+```text
+Transaction T002
+       |
+       +---- DEBIT  External Funding Account  ₹1,000
+       |
+       +---- CREDIT Wallet A                  ₹1,000
+```
+
+For a withdrawal:
+
+```text
+Transaction T003
+       |
+       +---- DEBIT  Wallet A                   ₹1,000
+       |
+       +---- CREDIT External Settlement Account ₹1,000
+```
 
 ---
 
-# 8. Wallet → Ledger Entries
+# 9. Ledger Account Model
+
+Phase 10 introduces explicit ledger-account ownership.
+
+The domain model uses:
 
 ```text
-Wallet 1 ---- N Ledger Entries
+LedgerAccountId
+LedgerAccountType
 ```
 
-A wallet can have many ledger movements over its lifetime.
-
-Example:
+For wallet accounts:
 
 ```text
-Wallet A
-
-Ledger Entry 1 -> CREDIT ₹5,000
-Ledger Entry 2 -> DEBIT  ₹1,000
-Ledger Entry 3 -> DEBIT  ₹500
-Ledger Entry 4 -> CREDIT ₹2,000
+LedgerAccountId   = WalletId
+LedgerAccountType = WALLET
 ```
 
-This allows the system to reconstruct and audit financial activity.
+External financial movements use stable predefined ledger-account identifiers and their corresponding account type.
+
+This allows the accounting model to represent both:
+
+```text
+Application wallet accounts
+```
+
+and:
+
+```text
+External funding / settlement accounts
+```
+
+without pretending that every accounting account is a user wallet.
 
 ---
 
-# 9. Transaction → Fraud Assessment
+# 10. Ledger Entry Model
+
+A ledger entry contains the accounting information required to explain a financial movement:
 
 ```text
-Transaction 1 ---- 0..1 Fraud Assessment
+LedgerEntry
+ |
+ +-- id
+ +-- transaction_id
+ +-- ledger_account_id
+ +-- ledger_account_type
+ +-- entry_type
+ +-- amount
+ +-- currency
+ +-- created_at
 ```
 
-A transaction may have a fraud assessment.
+Entry types are:
+
+```text
+DEBIT
+CREDIT
+```
+
+Amounts are always positive.
+
+The direction of the movement is represented by `entry_type`, not by a negative amount.
+
+---
+
+# 11. Double-Entry Invariant
+
+Every completed financial transaction must balance:
+
+```text
+Total DEBIT = Total CREDIT
+```
 
 Example:
 
 ```text
 Transaction T001
-       |
-       v
-Fraud Assessment
-       |
-       +-- risk_score = 87.50
-       +-- risk_level = HIGH
-       +-- decision = REVIEW
+
+DEBIT   Wallet A   ₹1,000
+CREDIT  Wallet B   ₹1,000
+
+Total Debit  = ₹1,000
+Total Credit = ₹1,000
 ```
 
-The MVP allows one fraud assessment per transaction through:
+The same principle applies to deposits and withdrawals.
 
-```text
-UNIQUE(transaction_id)
-```
-
-Future versions may evolve this if multiple model evaluations or assessment versions are required.
+This is a cross-row accounting invariant and is enforced by ledger posting logic, transaction boundaries, tests, and reconciliation rather than a simple row-level CHECK constraint.
 
 ---
 
-# 10. User → Idempotency Key
+# 12. Ledger Immutability
+
+Ledger entries represent historical accounting facts.
+
+Once posted:
+
+```text
+UPDATE -> blocked
+DELETE -> blocked
+```
+
+The design protects immutability at two levels:
+
+```text
+Application/domain layer
+        +
+Database layer
+```
+
+V3 adds database-level protection against modifying or deleting ledger entries.
+
+This protects the accounting history against accidental ORM updates and direct database changes.
+
+---
+
+# 13. Wallet Balance vs Ledger
+
+The wallet and ledger answer different questions.
+
+### Wallet
+
+```text
+wallets.balance
+        |
+        v
+Current operational balance
+```
+
+### Ledger
+
+```text
+ledger_entries
+        |
+        v
+Historical accounting movements
+```
+
+For example:
+
+```text
+Wallet balance = ₹9,000
+
+Ledger:
+    CREDIT ₹10,000
+    DEBIT  ₹1,000
+```
+
+The wallet balance represents current state, while the ledger explains the financial movements that produced that state.
+
+---
+
+# 14. Wallet Reconciliation
+
+Wallet reconciliation compares:
+
+```text
+Wallet.balance
+```
+
+with the balance derived from ledger entries belonging to that wallet's ledger account.
+
+Conceptually:
+
+```text
+Ledger Credits
+     -
+Ledger Debits
+     =
+Ledger-derived balance
+```
+
+Then:
+
+```text
+Ledger-derived balance
+          |
+          v
+     compare with
+          |
+          v
+Wallet.balance
+```
+
+A mismatch indicates that the operational wallet state and accounting history require investigation.
+
+---
+
+# 15. Transactional Consistency
+
+A financial operation must be atomic.
+
+Conceptually:
+
+```text
+Payment state
+     +
+Transaction
+     +
+Wallet balance
+     +
+Ledger entries
+```
+
+must succeed or fail together within the appropriate database transaction boundary.
+
+If ledger posting fails, the financial operation must roll back rather than leaving partial state.
+
+Phase 10 includes automated tests that verify transactional rollback behavior.
+
+---
+
+# 16. Idempotency
+
+The idempotency relationship is:
 
 ```text
 User 1 ---- N Idempotency Keys
 ```
 
-An idempotency key represents a client's logical request.
+An idempotency key identifies one logical client operation for a user.
 
 Example:
 
 ```text
 POST /api/payments
-
 Idempotency-Key: ABC123
 ```
 
-If the client retries the request:
+The database uniqueness boundary is:
 
 ```text
-ABC123
-ABC123
-ABC123
+(user_id, key)
 ```
 
-the system should recognize that these requests represent the same logical operation.
+The request hash detects reuse of the same key with a different request payload.
 
-The database enforces:
-
-```text
-UNIQUE(user_id, key)
-```
-
-The associated payment identifies the original operation.
+The key also references the payment associated with the original operation.
 
 ---
 
-# 11. Complete Financial Flow
+# 17. Fraud Assessment
 
-The most important relationship to remember is:
+A transaction can have one fraud assessment in the current MVP:
+
+```text
+Transaction 1 ---- 0..1 Fraud Assessment
+```
+
+The assessment stores:
+
+```text
+risk_score
+risk_level
+decision
+reasons
+model_version
+```
+
+The `reasons` field uses PostgreSQL `JSONB`.
+
+Fraud analysis supports the payment workflow but does not directly own financial state changes.
+
+---
+
+# 18. Complete Financial Flow
+
+The central PayFlow flow is:
 
 ```text
 User
@@ -449,6 +674,9 @@ Transaction
   |
   v
 Ledger Entries
+  |
+  v
+Ledger Accounts
 ```
 
 For a transfer:
@@ -471,112 +699,95 @@ Transaction
 DEBIT Wallet A      CREDIT Wallet B
 ```
 
-This is the core financial model of PayFlow.
+For a deposit:
+
+```text
+External Funding
+       |
+       v
+Transaction
+       |
+       +----------------------+
+       |                      |
+       v                      v
+DEBIT External        CREDIT Wallet A
+```
+
+For a withdrawal:
+
+```text
+Wallet A
+   |
+   v
+Transaction
+   |
+   +-----------------------------+
+   |                             |
+   v                             v
+DEBIT Wallet A        CREDIT External Settlement
+```
+
+Every completed operation must remain balanced.
 
 ---
 
-# 12. Wallet Balance vs Ledger
-
-An important design distinction:
-
-```text
-Wallet.balance
-      |
-      | Current operational state
-      v
-   ₹9,000
-```
-
-versus:
-
-```text
-Ledger
-      |
-      | Immutable financial history
-      |
-      +-- CREDIT ₹10,000
-      +-- DEBIT  ₹1,000
-```
-
-The wallet balance answers:
-
-> "How much money is currently available?"
-
-The ledger answers:
-
-> "What financial movements produced this state?"
-
-They are related, but they are **not the same thing**.
-
----
-
-# 13. Important Financial Invariant
-
-For every completed transaction:
-
-```text
-Total DEBIT = Total CREDIT
-```
-
-Example:
-
-```text
-Transaction T001
-
-DEBIT  Wallet A   ₹1,000
-CREDIT Wallet B   ₹1,000
-
-Total Debit  = ₹1,000
-Total Credit = ₹1,000
-```
-
-Therefore:
-
-```text
-₹1,000 = ₹1,000
-```
-
-The database schema provides the structure required for this invariant, while application/service transaction logic and tests are responsible for enforcing the cross-row accounting rule.
-
----
-
-# 14. Why This Design Is Structured This Way
-
-The entities have different responsibilities:
+# 19. Entity Responsibilities
 
 | Entity | Responsibility |
 |---|---|
-| `users` | Identity/account owner |
-| `roles` | Authorization role |
-| `wallets` | Current operational balance |
+| `users` | Identity and account ownership |
+| `roles` | Authorization roles |
+| `user_roles` | User-role assignments |
+| `wallets` | Current operational wallet state |
 | `payments` | Business operation/request |
-| `payment_attempts` | Processing attempts |
+| `payment_attempts` | Payment processing attempts |
 | `transactions` | Financial event |
-| `ledger_entries` | Accounting history |
-| `idempotency_keys` | Duplicate request protection |
-| `fraud_assessments` | Risk analysis |
+| `ledger_entries` | Immutable accounting history |
+| `idempotency_keys` | Duplicate-request protection |
+| `fraud_assessments` | Transaction risk analysis |
 
-This separation prevents one table from becoming responsible for unrelated concerns.
+Ledger accounts are represented in the ledger domain rather than as a separate `ledger_accounts` table in the current schema.
 
 ---
 
-# 15. Phase 5 Database Boundary
+# 20. Migration History
 
-The current Phase 5 database design intentionally focuses on the core financial domain.
-
-Deferred tables include:
+The current database schema evolves through three migrations:
 
 ```text
-notifications
-ai_insights
-transaction_categories
-audit_logs
+V1__initial_schema.sql
+        |
+        v
+Initial PayFlow relational schema
+
+V2__ledger_account_model.sql
+        |
+        v
+Explicit ledger-account ownership
+
+V3__ledger_immutability.sql
+        |
+        v
+Database-level ledger immutability
 ```
 
-These will be introduced when their corresponding features are designed.
+The migration files are authoritative and should not be rewritten as part of documentation maintenance.
 
-Database migration tooling is also intentionally deferred to:
+---
 
-**Phase 6 — Spring Boot Foundation**
+# 21. Phase 10 ERD Checkpoint
 
-The Phase 5 schema was manually created and verified in PostgreSQL for learning and database-design validation.
+Phase 10 establishes the ledger as a first-class accounting component.
+
+The current model supports:
+
+- explicit ledger account identity
+- wallet ledger accounts
+- external funding/settlement accounts
+- double-entry accounting
+- immutable ledger history
+- transactional rollback
+- wallet reconciliation
+- internal ledger read access
+
+The diagram intentionally describes the current implementation rather than speculative future microservice/database boundaries.

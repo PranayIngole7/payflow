@@ -4,35 +4,42 @@
 
 PayFlow uses PostgreSQL as the authoritative source of truth for financial state.
 
-The current application follows a modular-monolith architecture. Account, Wallet, Transaction, and Ledger domains share one PostgreSQL database while maintaining clear domain boundaries.
+The application currently follows a **modular monolith** architecture. Account, Wallet, Payment, Transaction, and Ledger domains share one PostgreSQL database while maintaining clear domain boundaries.
 
 The database is designed around these principles:
 
 - Financial data must be strongly consistent.
-- Monetary values must use exact decimal types.
-- Financial history must be preserved and auditable.
-- Database constraints should protect fundamental data integrity.
+- Monetary values use exact decimal types.
+- Financial history must remain auditable.
+- Database constraints protect fundamental data integrity.
 - Cross-record business rules are enforced through application logic and database transactions.
+- Ledger records are treated as immutable accounting history.
 - Indexes are driven by actual query patterns.
-- The schema should support future evolution toward independently deployable services if justified.
+- Database separation is deferred until there is a concrete architectural reason.
 
 ### Current database approach
 
 ```text
-Modular Monolith
-       |
-       v
-   PostgreSQL
-       |
-       +-- Account
-       +-- Wallet
-       +-- Transaction
-       +-- Ledger
-       +-- Idempotency
-       +-- Fraud Assessment
+                    PostgreSQL
+                 Financial Source
+                    of Truth
+                       |
+        +--------------+--------------+
+        |              |              |
+     Account         Wallet         Payment
+                                       |
+                                       v
+                                  Transaction
+                                       |
+                                       v
+                                    Ledger
+                                       |
+                         +-------------+-------------+
+                         |                           |
+                  Ledger Accounts              Ledger Entries
 ```
 
-The current design intentionally uses one PostgreSQL database. Separate databases per future microservice are not introduced at this stage.
+Redis and Kafka are supporting infrastructure. They are not authoritative stores for financial state.
 
 ---
 
@@ -40,13 +47,15 @@ The current design intentionally uses one PostgreSQL database. Separate database
 
 ### 2.1 PostgreSQL is the financial source of truth
 
-Wallet balances, payments, transactions, and ledger records are persisted in PostgreSQL.
+Financial state is persisted in PostgreSQL.
 
-Redis and Kafka are not authoritative stores for financial state.
+| Component | Responsibility |
+|---|---|
+| PostgreSQL | Durable financial state and accounting history |
+| Redis | Caching and other non-authoritative supporting use cases |
+| Kafka | Asynchronous event distribution |
 
-- PostgreSQL: durable financial state
-- Kafka: asynchronous event distribution
-- Redis: caching, rate limiting, temporary/idempotency-related use cases where appropriate
+Redis and Kafka must not become the source of truth for wallet balances or ledger history.
 
 ### 2.2 Monetary values
 
@@ -57,16 +66,20 @@ PostgreSQL: NUMERIC(19,2)
 Java:       BigDecimal
 ```
 
-Floating-point types such as `FLOAT` or `DOUBLE` are not used for monetary values because binary floating-point representation can introduce precision errors.
+Floating-point types such as `FLOAT` and `DOUBLE` are not used for monetary values.
+
+Currency is stored explicitly using:
+
+```text
+CHAR(3)
+```
 
 Example:
 
 ```text
-amount = 1000.00
+amount   = 1000.00
 currency = INR
 ```
-
-The currency is stored explicitly using `CHAR(3)`.
 
 ### 2.3 Time
 
@@ -76,25 +89,43 @@ Timestamp fields use:
 TIMESTAMPTZ
 ```
 
-This stores an absolute point in time while preserving correct timezone-aware semantics.
+This represents an absolute point in time while preserving timezone-aware semantics.
 
 ### 2.4 Identifiers
 
-Tables use UUID primary keys.
+Main entities use UUID primary keys.
 
-UUIDs avoid exposing simple sequential identifiers and work well across future distributed components.
+UUIDs provide application-level identifiers suitable for the current modular monolith and future distributed components.
 
 ### 2.5 Financial history
 
 Financial records should not be casually deleted.
 
-User, wallet, payment, transaction, and ledger history should be preserved where possible. State changes such as `CLOSED`, `FAILED`, or `CANCELLED` are preferred over destructive deletion for financial records.
+Completed payments, transactions, and ledger entries must remain available for auditing and reconciliation.
+
+State transitions such as `FAILED`, `CANCELLED`, or `CLOSED` are preferred over destructive deletion where appropriate.
 
 ---
 
-## 3. Initial Schema
+# 3. Schema Evolution
 
-The initial Phase 5 schema contains:
+The database schema is version-controlled with Flyway migrations.
+
+The current migration history is:
+
+```text
+V1__initial_schema.sql
+        |
+        v
+V2__ledger_account_model.sql
+        |
+        v
+V3__ledger_immutability.sql
+```
+
+### V1 — Initial schema
+
+V1 establishes the original PayFlow relational model, including:
 
 ```text
 users
@@ -109,41 +140,61 @@ idempotency_keys
 fraud_assessments
 ```
 
-### 3.1 users
+The original ledger model associated ledger entries directly with wallets.
+
+### V2 — Ledger account model
+
+V2 evolves ledger ownership from direct wallet ownership to explicit accounting-account ownership.
+
+The ledger now distinguishes:
+
+```text
+LedgerAccountId
+LedgerAccountType
+```
+
+Wallet accounts use the wallet UUID as their stable ledger account identifier.
+
+External funding and settlement movements use stable predefined ledger account identifiers.
+
+This allows the ledger to represent accounting movements that are not limited to one application wallet.
+
+### V3 — Ledger immutability
+
+V3 adds database-level protection against modification and deletion of ledger entries.
+
+The ledger is therefore protected at both application and database levels.
+
+**The migration files themselves are the authoritative implementation history and should not be rewritten merely to update documentation.**
+
+---
+
+# 4. Core Tables
+
+## 4.1 users
 
 Represents the PayFlow account owner.
 
-Important fields:
+Important fields include:
 
-- `id` — UUID primary key
-- `email` — unique user email
-- `password_hash` — hashed password; raw passwords are never stored
+- `id`
+- `email`
+- `password_hash`
 - `first_name`
 - `last_name`
 - `status`
 - `created_at`
 - `updated_at`
 
-Allowed user states:
+The email is unique.
 
-```text
-ACTIVE
-SUSPENDED
-LOCKED
-CLOSED
-```
+Raw passwords are never stored.
 
-The email has a UNIQUE constraint.
-
-User state and wallet state are intentionally separate concepts.
-
----
-
-### 3.2 roles
+## 4.2 roles
 
 Represents authorization roles.
 
-Supported roles:
+Supported roles include:
 
 ```text
 CUSTOMER
@@ -153,9 +204,7 @@ ADMIN
 
 The role name is unique.
 
----
-
-### 3.3 user_roles
+## 4.3 user_roles
 
 Join table implementing the many-to-many relationship between users and roles.
 
@@ -172,15 +221,11 @@ users(id)
 roles(id)
 ```
 
-This prevents duplicate user-role assignments.
-
----
-
-### 3.4 wallets
+## 4.4 wallets
 
 Represents the user's current operational wallet state.
 
-Important fields:
+Important fields include:
 
 - `id`
 - `user_id`
@@ -191,24 +236,15 @@ Important fields:
 - `created_at`
 - `updated_at`
 
-MVP relationship:
+The MVP maintains:
 
 ```text
 User 1 ---- 1 Wallet
 ```
 
-This is enforced with a UNIQUE constraint on `user_id`.
+This is enforced through the unique wallet ownership constraint.
 
-Allowed wallet states:
-
-```text
-ACTIVE
-SUSPENDED
-BLOCKED
-CLOSED
-```
-
-The database also enforces:
+The database protects the basic invariant:
 
 ```text
 balance >= 0
@@ -218,17 +254,19 @@ The `version` column supports optimistic concurrency control.
 
 ### Wallet balance vs ledger
 
-The wallet balance represents current operational state.
+`wallets.balance` represents the current operational state.
 
-The ledger represents immutable accounting history.
+The ledger represents the immutable accounting history behind financial movements.
 
-They serve different purposes and should not be treated as interchangeable.
+They are deliberately separate concepts.
 
 ---
 
-### 3.5 payments
+# 5. Payments
 
-Represents a business operation/request.
+## 5.1 payments
+
+A payment represents the business operation/request initiated by a user.
 
 Supported payment types:
 
@@ -247,7 +285,7 @@ FAILED
 CANCELLED
 ```
 
-Important fields:
+Important fields include:
 
 - `id`
 - `reference`
@@ -265,39 +303,27 @@ The payment reference is unique.
 
 The amount must be greater than zero.
 
-Some payment rules are intentionally application-level rather than simple database CHECK constraints:
+Payment-specific structural rules are enforced by application logic, including:
 
-- A transfer requires both source and destination wallets.
-- A deposit requires a destination wallet.
-- A withdrawal requires a source wallet.
-- Source and destination wallets must differ for transfers.
-- Wallet ownership and authorization must be validated by the application.
+- valid source/destination combinations
+- wallet ownership
+- transfer source/destination requirements
+- authorization
+- business validation
 
----
-
-### 3.6 payment_attempts
+## 5.2 payment_attempts
 
 Represents an individual processing attempt for a payment.
 
-One payment can have multiple attempts.
+A payment can have multiple attempts.
 
-Supported attempt statuses:
+Supported attempt statuses include:
 
 ```text
 INITIATED
 COMPLETED
 FAILED
 ```
-
-Important fields:
-
-- `id`
-- `payment_id`
-- `attempt_number`
-- `status`
-- `failure_reason`
-- `started_at`
-- `completed_at`
 
 The combination:
 
@@ -307,23 +333,23 @@ The combination:
 
 is unique.
 
-This separates the lifecycle of the overall payment from individual processing attempts.
+This separates the overall payment lifecycle from individual processing attempts.
 
 ---
 
-### 3.7 transactions
+# 6. Transactions
 
-Represents the financial event resulting from a payment.
+A transaction represents the financial event resulting from a payment.
 
-The relationship is:
+Relationship:
 
 ```text
 Payment 1 ---- 0..1 Transaction
 ```
 
-In the MVP, one payment can produce at most one transaction.
+In the MVP, `payment_id` is unique in the transaction table.
 
-Important fields:
+Important fields include:
 
 - `id`
 - `reference`
@@ -337,8 +363,6 @@ Important fields:
 - `created_at`
 - `completed_at`
 
-The payment ID is unique in the transactions table.
-
 Supported transaction types:
 
 ```text
@@ -347,7 +371,7 @@ DEPOSIT
 WITHDRAWAL
 ```
 
-Supported statuses:
+Supported statuses include:
 
 ```text
 PENDING
@@ -355,31 +379,66 @@ COMPLETED
 FAILED
 ```
 
+A transaction is the bridge between the payment operation and its accounting representation.
+
 ---
 
-### 3.8 ledger_entries
+# 7. Ledger Model
 
-Represents an individual accounting movement.
+## 7.1 Why the ledger is separate
 
-For a transfer such as:
-
-```text
-Wallet A -> Wallet B
-Amount: ₹1,000
-```
-
-the ledger contains:
+PayFlow uses three related but distinct concepts:
 
 ```text
-Wallet A   DEBIT    ₹1,000
-Wallet B   CREDIT   ₹1,000
+Payment
+    |
+    | What the user requested
+    v
+Transaction
+    |
+    | What financial event occurred
+    v
+Ledger
+    |
+    | How that event was accounted for
+    v
+Ledger Entries
 ```
 
-Important fields:
+This separation makes financial history explicit and auditable.
+
+## 7.2 Ledger accounts
+
+The Phase 10 ledger uses an explicit accounting-account model.
+
+A ledger account consists conceptually of:
+
+```text
+LedgerAccountId
+LedgerAccountType
+```
+
+For wallet accounts:
+
+```text
+LedgerAccountId   = WalletId
+LedgerAccountType = WALLET
+```
+
+External funding or settlement movements use stable predefined account identifiers.
+
+This avoids treating every accounting movement as if it must belong to a user wallet.
+
+## 7.3 ledger_entries
+
+A ledger entry represents one immutable accounting movement.
+
+Important fields include:
 
 - `id`
 - `transaction_id`
-- `wallet_id`
+- `ledger_account_id`
+- `ledger_account_type`
 - `entry_type`
 - `amount`
 - `currency`
@@ -394,9 +453,66 @@ CREDIT
 
 The amount must be greater than zero.
 
-A ledger entry references both the transaction and wallet.
+Each ledger entry references the transaction that produced the accounting movement.
 
-### Ledger invariant
+---
+
+# 8. Double-Entry Accounting
+
+Every completed financial transaction must have balanced accounting entries.
+
+For a transfer:
+
+```text
+Wallet A -> Wallet B
+Amount: ₹1,000
+```
+
+the ledger contains:
+
+```text
+DEBIT   Wallet A   ₹1,000
+CREDIT  Wallet B   ₹1,000
+```
+
+Therefore:
+
+```text
+Total Debit  = ₹1,000
+Total Credit = ₹1,000
+```
+
+For a deposit:
+
+```text
+External Funding -> Wallet A
+```
+
+the ledger represents:
+
+```text
+DEBIT   External Funding Account   ₹1,000
+CREDIT  Wallet A                   ₹1,000
+```
+
+For a withdrawal:
+
+```text
+Wallet A -> External Settlement
+```
+
+the ledger represents:
+
+```text
+DEBIT   Wallet A                    ₹1,000
+CREDIT  External Settlement Account ₹1,000
+```
+
+The accounting model therefore remains balanced for wallet inflows and outflows as well as transfers.
+
+---
+
+# 9. Ledger Invariants
 
 For every completed transaction:
 
@@ -404,17 +520,134 @@ For every completed transaction:
 SUM(DEBIT) = SUM(CREDIT)
 ```
 
-This is a cross-row accounting invariant. A simple row-level CHECK constraint cannot enforce it.
+This is a cross-row invariant and cannot be enforced by a simple row-level CHECK constraint.
 
-The application/service transaction and automated tests must enforce this invariant.
+PayFlow enforces the invariant through:
 
-The ledger is intended to be immutable financial history.
+- ledger posting logic
+- application transaction boundaries
+- automated tests
+- database persistence
+- reconciliation
+
+A failed posting must not leave partial financial state behind.
 
 ---
 
-### 3.9 idempotency_keys
+# 10. Ledger Immutability
 
-Protects financial operations from duplicate client requests.
+Ledger entries represent historical accounting facts.
+
+Once posted, they must not be modified or deleted.
+
+The immutability design has two layers.
+
+### Application layer
+
+The ledger domain does not expose normal update/delete operations for posted entries.
+
+### Database layer
+
+V3 adds database-level protection against modification and deletion of ledger entries.
+
+Therefore:
+
+```text
+Ledger Entry
+     |
+     v
+INSERT allowed
+     |
+     v
+Historical record
+     |
+     +---- UPDATE blocked
+     |
+     +---- DELETE blocked
+```
+
+This provides defense in depth against accidental ORM updates, application bugs, or direct database modification.
+
+---
+
+# 11. Transactional Consistency
+
+Financial state changes are performed within database transaction boundaries.
+
+A typical financial operation must keep related changes atomic:
+
+```text
+Wallet balance change
+        +
+Transaction
+        +
+Ledger entries
+        +
+Payment state
+```
+
+must not partially succeed.
+
+If ledger posting fails, the surrounding financial operation must roll back rather than leaving an inconsistent wallet or transaction state.
+
+Automated tests verify this rollback behavior.
+
+---
+
+# 12. Wallet Reconciliation
+
+Wallet reconciliation compares the operational wallet balance with the balance implied by its ledger history.
+
+Conceptually:
+
+```text
+Expected balance from ledger
+             |
+             v
+        Reconciliation
+             |
+             v
+Compare with wallets.balance
+```
+
+For a wallet:
+
+```text
+Ledger Credits
+    -
+Ledger Debits
+    =
+Ledger-derived balance
+```
+
+The result can then be compared with the current wallet balance.
+
+A mismatch indicates that the wallet state and accounting history require investigation.
+
+Reconciliation is a consistency check, not a replacement for the authoritative ledger.
+
+---
+
+# 13. Internal Ledger Read APIs
+
+Phase 10 introduces internal read use cases for ledger history.
+
+The ledger supports querying entries by:
+
+```text
+Ledger Account
+Transaction
+```
+
+These read operations provide controlled access to accounting history without exposing persistence entities directly.
+
+The API layer maps ledger information into response objects.
+
+---
+
+# 14. Idempotency
+
+The `idempotency_keys` table protects financial operations from duplicate client requests.
 
 Example:
 
@@ -423,52 +656,35 @@ POST /api/payments
 Idempotency-Key: ABC123
 ```
 
-If the request times out and the client retries with the same key, PayFlow should return the original payment instead of creating another financial operation.
-
-Important fields:
-
-- `id`
-- `user_id`
-- `key`
-- `request_hash`
-- `payment_id`
-- `created_at`
-- `expires_at`
-
-The combination:
+For a given user:
 
 ```text
 (user_id, key)
 ```
 
-is unique.
+identifies one logical client operation.
 
-The request hash allows the application to detect a dangerous case where the same idempotency key is reused with a different request payload.
+The request hash allows PayFlow to detect reuse of an existing key with a different request payload.
 
-The idempotency record points to the original payment.
-
-### What idempotency protects
-
-It protects against duplicate client requests/retries.
+Idempotency protects against duplicate client retries.
 
 It does not replace:
 
+- database transactions
 - wallet concurrency control
-- database transaction management
-- Kafka duplicate-event handling
-- deadlock handling
 - ledger balancing
 - authorization
+- Kafka duplicate-event handling
 
-These are separate reliability concerns.
+These remain separate reliability concerns.
 
 ---
 
-### 3.10 fraud_assessments
+# 15. Fraud Assessments
 
-Stores the risk assessment associated with a transaction.
+The `fraud_assessments` table stores risk analysis associated with a transaction.
 
-Important fields:
+Important fields include:
 
 - `id`
 - `transaction_id`
@@ -479,135 +695,15 @@ Important fields:
 - `model_version`
 - `created_at`
 
-Risk score:
+`reasons` uses PostgreSQL `JSONB` because the number and structure of explanatory reasons can vary.
 
-```text
-0 <= risk_score <= 100
-```
-
-Supported risk levels:
-
-```text
-LOW
-MEDIUM
-HIGH
-CRITICAL
-```
-
-Supported assessment decisions:
-
-```text
-ALLOW
-REVIEW
-BLOCK
-```
-
-`reasons` uses PostgreSQL `JSONB` because a fraud model can produce a variable number of explanatory reasons.
-
-`model_version` records which model/ruleset produced the assessment.
-
-The transaction ID is unique in the MVP, allowing one fraud assessment per transaction.
-
-### Fraud architecture principle
-
-Fraud assessment advises the payment system.
-
-The AI/model does not directly own or execute financial operations.
-
-The backend remains responsible for:
-
-- authentication
-- authorization
-- business validation
-- balance checks
-- transaction boundaries
-- idempotency
-- financial state changes
+The fraud model advises the payment system; it does not directly own financial state changes.
 
 ---
 
-## 4. Entity Relationships
+# 16. Important Constraints
 
-The initial relationships are:
-
-```text
-User
- |
- +---- 1:1 ---- Wallet
- |
- +---- 1:N ---- Payment
- |
- +---- 1:N ---- Idempotency Key
- |
- +---- M:N ---- Role
-              via User Role
-
-Wallet
- |
- +---- 1:N ---- Payment
- |
- +---- 1:N ---- Ledger Entry
-
-Payment
- |
- +---- 1:N ---- Payment Attempt
- |
- +---- 1:0..1 ---- Transaction
-
-Transaction
- |
- +---- 1:N ---- Ledger Entry
- |
- +---- 1:0..1 ---- Fraud Assessment
-```
-
-### Conceptual flow
-
-```text
-User
-  |
-  v
-Wallet
-  |
-  v
-Payment
-  |
-  +---- Payment Attempts
-  |
-  v
-Transaction
-  |
-  +---- Ledger Entries
-  |
-  +---- Fraud Assessment
-```
-
----
-
-## 5. Database Constraints
-
-Constraints protect fundamental data integrity.
-
-### Primary keys
-
-Every main entity has a UUID primary key.
-
-### Foreign keys
-
-Foreign keys preserve valid relationships between domains.
-
-Examples:
-
-```text
-wallets.user_id -> users.id
-payments.user_id -> users.id
-transactions.payment_id -> payments.id
-ledger_entries.transaction_id -> transactions.id
-ledger_entries.wallet_id -> wallets.id
-fraud_assessments.transaction_id -> transactions.id
-```
-
-### Unique constraints
+The database protects fundamental integrity through primary keys, foreign keys, unique constraints, and CHECK constraints.
 
 Important unique constraints include:
 
@@ -623,244 +719,119 @@ idempotency_keys(user_id, key)
 fraud_assessments.transaction_id
 ```
 
-### CHECK constraints
-
-Examples include:
+Financial range constraints include:
 
 ```text
 wallet.balance >= 0
 payment.amount > 0
 transaction.amount > 0
 ledger_entry.amount > 0
-fraud_assessment.risk_score BETWEEN 0 AND 100
 ```
+
+Fraud score is constrained to its valid range.
+
+Cross-row financial rules remain application/service responsibilities.
 
 ---
 
-## 6. Index Strategy
+# 17. Index Strategy
 
-Indexes are created based on expected query patterns.
+Indexes are driven by actual query patterns.
 
-Primary keys and UNIQUE constraints already create indexes, so duplicate indexes are avoided.
+Primary keys and UNIQUE constraints already provide indexes where appropriate, so redundant indexes should be avoided.
 
-### Payments
-
-Expected query:
-
-```sql
-SELECT *
-FROM payments
-WHERE user_id = ?
-ORDER BY created_at DESC;
-```
-
-Index:
+Important query patterns include:
 
 ```text
-idx_payments_user_created_at
-(user_id, created_at DESC)
+payments by user and creation time
+transactions by source wallet and creation time
+transactions by destination wallet and creation time
+ledger entries by ledger account and creation time
+ledger entries by transaction
 ```
 
-### Transactions by source wallet
-
-Expected query:
-
-```sql
-SELECT *
-FROM transactions
-WHERE source_wallet_id = ?
-ORDER BY created_at DESC;
-```
-
-Index:
-
-```text
-idx_transactions_source_wallet_created_at
-(source_wallet_id, created_at DESC)
-```
-
-### Transactions by destination wallet
-
-Expected query:
-
-```sql
-SELECT *
-FROM transactions
-WHERE destination_wallet_id = ?
-ORDER BY created_at DESC;
-```
-
-Index:
-
-```text
-idx_transactions_destination_wallet_created_at
-(destination_wallet_id, created_at DESC)
-```
-
-### Ledger history
-
-Expected query:
-
-```sql
-SELECT *
-FROM ledger_entries
-WHERE wallet_id = ?
-ORDER BY created_at DESC;
-```
-
-Index:
-
-```text
-idx_ledger_entries_wallet_created_at
-(wallet_id, created_at DESC)
-```
-
-### Indexing principle
-
-Do not index every column.
-
-Indexes should be justified by:
+Indexes should support:
 
 - filtering
-- joining
+- joins
 - sorting
 - pagination
-- actual application query patterns
 
-Indexes improve read performance but add storage and write/update overhead.
+Indexes also increase storage and write overhead, so indexing every column is intentionally avoided.
 
 ---
 
-## 7. Database vs Application Responsibilities
-
-Not every business rule belongs in a database CHECK constraint.
+# 18. Database vs Application Responsibilities
 
 ### Database responsibilities
 
-PostgreSQL should protect:
+PostgreSQL protects:
 
 - primary key uniqueness
 - foreign key relationships
 - unique business identifiers
-- valid enumerated states where appropriate
+- valid structural ranges
 - positive monetary amounts
 - non-negative wallet balance
-- valid risk score range
-- basic structural integrity
+- ledger-entry immutability
+- basic relational integrity
 
 ### Application responsibilities
 
-The application/service layer must enforce:
+The application enforces:
 
 - authentication
 - authorization
 - wallet ownership
 - payment workflow
-- transfer source/destination rules
+- transfer rules
 - sufficient balance
-- concurrency control
-- idempotency request handling
+- concurrency handling
+- idempotency behavior
 - transaction boundaries
+- double-entry posting
 - ledger balancing
+- reconciliation workflow
 - fraud decision workflow
-- domain-specific business rules
 
-This separation keeps the database responsible for fundamental integrity while keeping domain behavior in the application.
-
----
-
-## 8. Financial Invariants
-
-PayFlow must preserve several important invariants.
-
-### Wallet balance
-
-```text
-balance >= 0
-```
-
-A database CHECK constraint provides a basic safety boundary, but concurrency control is still required to prevent two concurrent operations from spending the same balance.
-
-### Positive financial amounts
-
-```text
-payment.amount > 0
-transaction.amount > 0
-ledger_entry.amount > 0
-```
-
-### Balanced ledger
-
-For every completed transaction:
-
-```text
-total debit = total credit
-```
-
-### Idempotency
-
-For a given user:
-
-```text
-(user_id, idempotency_key)
-```
-
-identifies one logical client operation.
-
-### Financial history
-
-Completed financial records should remain auditable and should not be casually deleted.
+This separation keeps structural integrity in the database and business behavior in the application.
 
 ---
 
-## 9. Concurrency Considerations
+# 19. Concurrency
 
-The wallet `version` column prepares the design for optimistic locking.
+Wallet balance changes require concurrency protection.
 
-For example, if a wallet contains:
-
-```text
-₹10,000
-```
-
-and two concurrent withdrawals attempt:
+For example:
 
 ```text
-₹8,000
-₹7,000
+Starting balance = ₹10,000
+
+Withdrawal A = ₹8,000
+Withdrawal B = ₹7,000
 ```
 
-the system must not allow both operations to succeed based on the same starting balance.
+The system must not allow both operations to succeed based on the same starting balance.
 
-Database transactions and an appropriate locking/concurrency strategy will be implemented and tested in later PayFlow phases.
+The wallet `version` field supports optimistic concurrency control.
 
-The database CHECK constraint:
-
-```text
-balance >= 0
-```
-
-is necessary but not sufficient for concurrency safety.
+The non-negative balance constraint provides an additional database safety boundary, but it is not by itself a complete concurrency strategy.
 
 ---
 
-## 10. Persistence and Docker
+# 20. Persistence and Docker
 
-Local PostgreSQL runs in Docker.
+Local PostgreSQL runs through Docker.
 
-The PostgreSQL data directory:
+The PostgreSQL data directory is:
 
 ```text
 /var/lib/postgresql/data
 ```
 
-is backed by the named Docker volume:
+and is backed by a named Docker volume.
 
-```text
-payflow_payflow_postgres_data
-```
-
-Therefore, stopping or recreating the PostgreSQL container does not inherently remove the database data, provided the persistent volume is retained.
+Stopping or restarting the container does not inherently remove the persisted database.
 
 For example:
 
@@ -869,7 +840,7 @@ docker stop payflow-postgres
 docker start payflow-postgres
 ```
 
-does not remove the persisted database.
+does not remove the volume.
 
 However:
 
@@ -877,39 +848,35 @@ However:
 docker compose down -v
 ```
 
-removes Docker volumes and can destroy the local database data.
+removes Docker volumes and can destroy local database data.
 
-### Persistence is not backup
-
-A Docker volume provides local persistence, not a backup strategy.
-
-Production environments will require proper PostgreSQL backup and recovery mechanisms.
+A Docker volume provides persistence, not a production backup strategy.
 
 ---
 
-## 11. Migration Strategy
+# 21. Migration Strategy
 
-During Phase 5, the schema was created manually in PostgreSQL using `psql`.
+Flyway provides version-controlled schema evolution.
 
-This was intentional for learning and direct verification of:
+The current database history is:
 
-- tables
-- relationships
-- constraints
-- indexes
-- PostgreSQL data types
+```text
+V1 — Initial relational schema
+V2 — Ledger account model
+V3 — Ledger immutability
+```
 
-The final application should use version-controlled database migrations so a fresh environment can reproduce the schema automatically.
+The migration files are committed to Git and should be treated as historical schema changes.
 
-Migration tooling will be introduced during Phase 6 — Spring Boot Foundation.
+They should not be rewritten simply to make the current schema documentation look cleaner.
 
-The database schema should eventually be reproducible from Git without relying on a developer's manually configured local database.
+A fresh environment should be able to reproduce the database schema by applying the migrations in order.
 
 ---
 
-## 12. Deliberately Deferred Tables
+# 22. Deferred Database Areas
 
-The following tables are not part of the initial Phase 5 schema:
+The following areas remain intentionally deferred until their corresponding features are designed:
 
 ```text
 notifications
@@ -918,61 +885,62 @@ transaction_categories
 audit_logs
 ```
 
-They will be introduced only when the corresponding features are designed and implemented.
-
-This avoids speculative database design and keeps the initial schema focused on the core financial domain.
+This avoids speculative database design.
 
 ---
 
-## 13. Future Evolution
+# 23. Current Architecture Boundary
 
-The current schema supports the modular-monolith architecture.
+PayFlow currently uses a modular monolith.
 
-If scaling requirements later justify microservices, domain boundaries can evolve toward separate services and potentially separate databases.
-
-Potential future ownership:
+Conceptual ownership is:
 
 ```text
-Account       -> User data
-Wallet        -> Wallet state
-Payment       -> Payment operations
-Transaction   -> Financial transactions
-Ledger        -> Accounting history
-Notification  -> Notification state
-AI            -> AI/fraud/insight data
+Account
+    -> users / roles
+
+Wallet
+    -> wallets
+
+Payment
+    -> payments / payment_attempts / idempotency
+
+Transaction
+    -> transactions
+
+Ledger
+    -> ledger_entries / ledger accounts / reconciliation
 ```
 
-Database separation is intentionally deferred until there is a real architectural reason.
+The domains share PostgreSQL while maintaining application-level boundaries.
+
+Future extraction into independently deployable services is possible, but database separation is intentionally deferred until justified by real scaling or operational requirements.
 
 ---
 
-## 14. Phase 5 Database Design Checkpoint
+# 24. Phase 10 Database Checkpoint
 
-Phase 5 database design is complete at the conceptual and manually verified PostgreSQL level.
+Phase 10 establishes the ledger as a first-class financial component.
 
-Completed:
+Completed database-level capabilities include:
 
-- Database architecture
-- Initial schema
-- Entity relationships
-- PostgreSQL data types
-- Monetary representation
-- Primary keys
-- Foreign keys
-- Unique constraints
-- CHECK constraints
-- Ledger design
-- Idempotency design
-- Fraud assessment design
-- Query-driven indexes
-- Financial invariants
-- Database/application responsibility boundaries
-- Docker PostgreSQL persistence understanding
+- explicit ledger-account ownership
+- wallet ledger accounts
+- external settlement/funding accounts
+- balanced double-entry accounting
+- immutable ledger history
+- transactional rollback protection
+- wallet reconciliation support
+- internal ledger read access
+- version-controlled migrations
+- PostgreSQL as financial source of truth
 
-Next major phase:
+The current migration chain is:
 
 ```text
-Phase 6 — Spring Boot Foundation
+V1__initial_schema.sql
+V2__ledger_account_model.sql
+V3__ledger_immutability.sql
 ```
 
-The next persistence milestone is to introduce version-controlled migrations and connect the Spring Boot application to PostgreSQL.
+The migration files remain unchanged as part of this documentation update.
